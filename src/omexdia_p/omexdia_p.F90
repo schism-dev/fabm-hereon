@@ -42,7 +42,7 @@
 
 !     Model parameters
       real(rk) :: rFast, rSlow, NCrFdet, NCrSdet
-      real(rk) :: PCrFdet, PCrSdet, PAds, PAdsODU
+      real(rk) :: PAds, PAdsODU
       real(rk) :: NH3Ads, rnit, ksO2nitri,rODUox
       real(rk) :: ksO2oduox, ksO2oxic,ksNO3denit,kinO2denit,kinNO3anox,kinO2anox
 
@@ -76,90 +76,63 @@
 !
 ! !REVISION HISTORY:
 !  Original author(s): Richard Hofmeister & Kai Wirtz
+!  Updated to FABM 1 by Nina Preußler
 !
 ! !LOCAL VARIABLES:
       real(rk) :: rFast, rSlow, NCrFdet, NCrSdet
-      real(rk) :: PCrFdet,PCrSdet, PAds, PAdsODU
+      real(rk) :: PAds, PAdsODU
       real(rk) :: NH3Ads, rnit, ksO2nitri,rODUox
       real(rk) :: ksO2oduox,ksO2oxic,ksNO3denit,kinO2denit,kinNO3anox,kinO2anox
-      real(rk) :: fdet_init,sdet_init,oxy_init,odu_init,no3_init,nh3_init
-      real(rk) :: pdet_init,po4_init
 
-   namelist /hereon_omexdia_p/  rFast, rSlow, NCrFdet, NCrSdet, &
-          PCrFdet, PCrSdet, PAds, PAdsODU, NH3Ads, rnit, ksO2nitri, &
-          rODUox,ksO2oduox, ksO2oxic,ksNO3denit,kinO2denit,kinNO3anox, &
-          kinO2anox,fdet_init,sdet_init,oxy_init,odu_init,no3_init,nh3_init, &
-          pdet_init,po4_init
+
 !EOP
 !-----------------------------------------------------------------------
 !BOC
 
-   ! Read the namelist
-   if (configunit>0) read(configunit,nml=hereon_omexdia_p,err=99,end=100)
-
-   ! Store parameter values in our own derived type
-   self%rFast=rFast
-   self%rSlow=rSlow
-   self%NCrFdet=NCrFdet
-   self%NCrSdet=NCrSdet
-   self%PCrFdet=PCrFdet
-   self%PCrSdet=PCrSdet
-   self%PAds=PAds
-   self%PAdsODU=PAdsODU
-   self%NH3Ads=NH3Ads
-   self%rnit=rnit
-   self%ksO2nitri=ksO2nitri
-   self%rODUox=rODUox
-   self%ksO2oduox=ksO2oduox
-   self%ksO2oxic=ksO2oxic
-   self%ksNO3denit=ksNO3denit
-   self%kinO2denit=kinO2denit
-   self%kinNO3anox=kinNO3anox
-   self%kinO2anox=kinO2anox
+   ! Register parameters
+   call self%get_parameter(self%rFast,'rFast','d-1','decay rate fast decay detritus ',default=0.08_rk)
+   call self%get_parameter(self%rSlow,'rSlow','d-1','decay rate slow decay detritus ',default=0.0005_rk)
+   call self%get_parameter(self%NCrFdet,'NCrFdet','molN molC-1','NC ratio fast decay detritus ',default=0.2_rk)
+   call self%get_parameter(self%NCrSdet,'NCrSdet','molN molC-1','NC ratio slow decay detritus ',default=0.01_rk)
+   call self%get_parameter(self%NH3Ads,'NH3Ads','-','Adsorption coefficient ammonium ',default=0.018_rk)
+   call self%get_parameter(self%rnit,'rnit','d-1','Maximum nitrification rate ',default=300.0_rk)
+   call self%get_parameter(self%ksO2nitri,'ksO2nitri','umolO2 m-3','half-saturation O2 in nitrification ',default=20.0_rk)
+   call self%get_parameter(self%rODUox,'rODUox','d-1','Maximum rate oxidation of ODU ',default=20.0_rk)
+   call self%get_parameter(self%ksO2oduox,'ksO2oduox','mmolO2 m-3','half-saturation O2 in oxidation of ODU ',default=10.0_rk)
+   call self%get_parameter(self%ksO2oxic,'ksO2oxic','mmolO2 m-3','half-saturation O2 in oxic minerals ',default=3.0_rk)
+   call self%get_parameter(self%ksNO3denit,'ksNO3denit','mmolNO3 m-3','half-saturation NO3 in denitrif ',default=1.0_rk)
+   call self%get_parameter(self%kinO2denit,'kinO2denit','mmmolO2 m-3','half-saturation O2 inhib denitrif ',default=70.0_rk)
+   call self%get_parameter(self%kinNO3anox,'kinNO3anox','mmolNO3 m-3','half-saturation NO3 inhib anoxic min ',default=1.0_rk)
+   call self%get_parameter(self%kinO2anox,'kinO2anox','mmolO2 m-3','half-saturation O2 inhib anoxic min ',default=1.0_rk)
+   call self%get_parameter(self%PAds,'PAds','-','Adsorption coefficient phosphate ',default=4.0_rk)
+   call self%get_parameter(self%PAdsODU,'PAdsODU','mmol m-3','phosphate adsorbed dissolved reduced substances ',default=40.0_rk)
 
    ! Register state variables
-   call self%register_state_variable(self%id_fdet,'fdet','mmolC/m**3','fast detritus C',     &
-                                    fdet_init,minimum=0.0_rk)
+   call self%register_state_variable(self%id_fdet, 'fdet', 'mmolC m**-3', 'fast detritus C',              4.e3_rk, minimum=0.0_rk)
+   call self%register_state_variable(self%id_sdet, 'sdet', 'mmolC m**-3', 'slow detritus C',              4.e3_rk, minimum=0.0_rk)
+   call self%register_state_variable(self%id_pdet, 'pdet', 'mmolP m**-3', 'detritus-P',                   4.e3_rk, minimum=0.0_rk)
+   call self%register_state_variable(self%id_po4,  'po4',  'mmolP m**-3', 'dissolved phosphate',          10._rk,  minimum=0.0_rk, standard_variable=standard_variables%mole_concentration_of_phosphate)
+   call self%register_state_variable(self%id_no3,  'no3',  'mmolN m**-3', 'dissolved nitrate',            20._rk,  minimum=0.0_rk, standard_variable=standard_variables%mole_concentration_of_nitrate)
+   call self%register_state_variable(self%id_nh3,  'nh3',  'mmolN m**-3', 'dissolved ammonium',           40._rk,  minimum=0.0_rk, standard_variable=standard_variables%mole_concentration_of_ammonium)
+   call self%register_state_variable(self%id_oxy,  'oxy',  'mmolO2 m**-3','dissolved oxygen',             100._rk, minimum=0.0_rk)
+   call self%register_state_variable(self%id_odu,  'odu',  'mmol m**-3',  'dissolved reduced substances', 100._rk, minimum=0.0_rk)
+
    call self%set_variable_property(self%id_fdet,'particulate',.true.)
-
-   call self%register_state_variable(self%id_sdet,'sdet','mmolC/m**3','slow detritus C', &
-                                    sdet_init,minimum=0.0_rk)
    call self%set_variable_property(self%id_sdet,'particulate',.true.)
-
-   call self%register_state_variable(self%id_pdet,'pdet','mmolP/m**3','detritus-P',     &
-                                    pdet_init,minimum=0.0_rk)
    call self%set_variable_property(self%id_pdet,'particulate',.true.)
-
-   call self%register_state_variable(self%id_po4,'po4','mmolP/m**3','dissolved phosphate', &
-                                    po4_init,minimum=0.0_rk, &
-                                    standard_variable=standard_variables%mole_concentration_of_phosphate)
    call self%set_variable_property(self%id_po4,'particulate',.false.)
-
-   call self%register_state_variable(self%id_no3,'no3','mmolN/m**3','dissolved nitrate',     &
-                                    no3_init,minimum=0.0_rk, &
-                                    standard_variable=standard_variables%mole_concentration_of_nitrate)
    call self%set_variable_property(self%id_no3,'particulate',.false.)
-
-   call self%register_state_variable(self%id_nh3,'nh3','mmolN/m**3','dissolved ammonium', &
-                                    nh3_init,minimum=0.0_rk, &
-                                    standard_variable=standard_variables%mole_concentration_of_ammonium)
    call self%set_variable_property(self%id_nh3,'particulate',.false.)
-
-   call self%register_state_variable(self%id_oxy,'oxy','mmolO2/m**3','dissolved oxygen',     &
-                                    oxy_init,minimum=0.0_rk)
    call self%set_variable_property(self%id_oxy,'particulate',.false.)
-
-   call self%register_state_variable(self%id_odu,'odu','mmol/m**3','dissolved reduced substances', &
-                                    odu_init,minimum=0.0_rk)
    call self%set_variable_property(self%id_odu,'particulate',.false.)
 
    ! Register diagnostic variables
-   call self%register_diagnostic_variable(self%id_adsp,'adsP','mmolP/m**3', &
-         'phosphate adsorption', output=output_instantaneous)
-   call self%register_diagnostic_variable(self%id_denit,'denit','mmol/m**3/d', &
-         'denitrification rate', output=output_instantaneous)
+
+   call self%register_diagnostic_variable(self%id_adsp,'adsP','mmolP m**-3','phosphate adsorption', output=output_instantaneous)
+   call self%register_diagnostic_variable(self%id_denit,'denit','mmol m**-3 d-1','denitrification rate', output=output_instantaneous)
 
    ! Register dependencies
+   
    call self%register_dependency(self%id_temp,standard_variables%temperature)
 
    return

@@ -27,7 +27,8 @@ contains
       select case (name)
          case ('light');  allocate(type_hereon_light::model)
          case ('omexdia_p'); allocate(type_hereon_omexdia_p::model)
-      end select
+         !case ('omexdia_bottom'); allocate(type_hereon_omexdia_bottom::model)
+         end select
 
    end subroutine
 

@@ -1,0 +1,30 @@
+instances:
+  omexdia:
+    model: hereon/omexdia_p
+    initialization:
+      fdet: 4.e3          # mmolC m**-3
+      sdet: 4.e3          # mmolC m**-3
+      pdet: 4.e3          # mmolP m**-3
+      po4: 10.0           # mmolP m**-3
+      no3: 20.0           # mmolN m**-3
+      nh3: 40.0           # mmolN m**-3
+      oxy: 100.0          # mmolO2 m**-3
+      odu: 100.0          # mmol m**-3
+  fdet_flux:
+    model: constant_surface_flux
+    parameters:
+      flux: 10.0  # state variable units * m s-1, which here means mmolC m**-3 s-1
+    coupling:
+      target: omexdia/fdet
+  oxy_flux:
+    model: constant_surface_flux
+    parameters:
+      flux: 100.0  # state variable units * m s-1, which here means mmolC m**-3 s-1
+    coupling:
+      target: omexdia/oxy  
+  # n2o_flux:
+  #   model: constant_surface_flux
+  #   parameters:
+  #     flux: -1000.0  # state variable units * m s-1, which here means mmolC m**-3 s-1
+  #   coupling:
+  #     target: omexdia/n2o

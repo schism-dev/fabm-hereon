@@ -54,7 +54,7 @@ make
 ```
 
 
-## Building pyfabm
+### Building pyfabm
 
 To use hereon models with pyfabm, do the following, after defining FABM_BASE and HEREON_BASE. See also the detailed instructions at https://github.com/fabm-model/fabm/wiki/python.
 
@@ -67,4 +67,45 @@ debug=1
 EOT
 
 python -m pip install $FABM_BASE/setup.cfg
-````
+```
+
+## How to couple
+
+FABM provides several built-in models that you can use to provide source and sink terms, as well as boundary conditions. The following models are available
+
+* `interior_constant`, `horizontal_constant`
+* `surface_flux`, `constant_surface_flux`, `external_surface_flux`
+* `external_bottom_flux`
+* `interior_source`
+* `bottom_source`
+* `interior_relaxation`
+* `column_projection`
+* `weighted_sum`
+* `horizontal_weighted_sum`
+* `bottom_field`
+ 
+ ### Interior sources
+
+ You can convert the flux from one model `source` to another model `target`  by specifying an `interior_source` model:
+
+ ```
+instances:
+  interior_source:
+    model: interior_source
+    coupling:
+      source: source/flux
+      target: target/c
+```
+
+### Horizontal constant
+
+You can specify a new horizontally constant property, that can be used in the `coupling:` section of onother model as `horizontal_constant/data`:
+
+```
+instances:
+  horizontal_constant:
+    model: horizontal_constant
+    parameters:
+      value: 0.0001                   # value
+
+```

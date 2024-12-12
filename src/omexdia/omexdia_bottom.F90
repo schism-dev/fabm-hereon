@@ -3,16 +3,26 @@
 !-----------------------------------------------------------------------
 !BOP
 !
-! !MODULE: hereon_omexdia_p --- Fortran 2003 version of OMEXDIA+P biogeochemical model
+! !MODULE: hereon_omexdia_bottom --- Fortran 2003 version of OMEXDIA+P biogeochemical bottom-only model
 !
 ! !INTERFACE:
-   module hereon_omexdia_p
+   module hereon_omexdia_bottom
 !
 ! !DESCRIPTION:
 !
 ! The OMEXDIA+P model is based on the OMEXDIA model (see Soetard et al. 1996a)
 ! and is intended to simulate early diagenesis in the sea sediments. The major
-! difference to the original OMEXDIA is an added phosphorus cycle.
+! difference to the original OMEXDIA is an added phosphorus cycle.  This version 
+! only considers 2D bottom processes
+!
+! SPDX-FileCopyRightText: 2021-2024 Helmholtz-Zentrum hereon GmbH
+! SPDX-FileCopyRightText: 2013-2021 Helmholtz-Zentrum Geesthacht GmbH
+! SPDX-FileContributor: Carsten Lemmen <carsten.lemmen@hereon.de>
+! SPDX-FileContributor: Nina Preußler <nina.preussler@hereon.de>
+! SPDX-FileContributor: Richard Hofmeister
+! SPDX-FileContributor: Kai W. Wirtz <kai.wirtz@hereon.de>
+! SPDX-LicenseRef: Apache-2.0
+!       
 !
 ! !USES:
    use fabm_types
@@ -23,22 +33,24 @@
    private
 !
 ! !PUBLIC MEMBER FUNCTIONS:
-   public type_hereon_omexdia_p
+   public type_hereon_omexdia_bottom
 !
 ! !PRIVATE DATA MEMBERS:
    real(rk), parameter :: secs_pr_day = 86400.0_rk
 !
 ! !REVISION HISTORY:!
 !  Original author(s): Richard Hofmeister & Kai Wirtz
+!  Updated to FABM1: Nina Preußler
+!  Reduced bottom model: Carsten Lemmen
 !
 !
 ! !PUBLIC DERIVED TYPES:
-   type,extends(type_base_model) :: type_hereon_omexdia_p
+   type,extends(type_base_model) :: type_hereon_omexdia_bottom
 !     Variable identifiers
-      type (type_state_variable_id)        :: id_fdet,id_sdet,id_pdet
-      type (type_state_variable_id)        :: id_no3,id_nh3,id_oxy,id_po4,id_odu
-      type (type_dependency_id)            :: id_temp
-      type (type_diagnostic_variable_id)   :: id_denit,id_adsp
+      type (type_bottom_state_variable_id)           :: id_fdet,id_sdet,id_pdet
+      type (type_bottom_state_variable_id)           :: id_no3,id_nh3,id_oxy,id_po4,id_odu
+      type (type_horizontal_dependency_id)           :: id_temp
+      type (type_horizontal_diagnostic_variable_id)  :: id_denit,id_adsp
 
 !     Model parameters
       real(rk) :: rFast, rSlow, NCrFdet, NCrSdet
@@ -50,9 +62,9 @@
 
 !     Model procedures
       procedure :: initialize
-      procedure :: do
+      procedure :: do_bottom
 
-   end type type_hereon_omexdia_p
+   end type type_hereon_omexdia_bottom
 !EOP
 !-----------------------------------------------------------------------
 
@@ -71,12 +83,8 @@
 !  by the model are registered with FABM.
 !
 ! !INPUT PARAMETERS:
-   class (type_hereon_omexdia_p),intent(inout),target  :: self
+   class (type_hereon_omexdia_bottom),intent(inout),target  :: self
    integer,                   intent(in)            :: configunit
-!
-! !REVISION HISTORY:
-!  Original author(s): Richard Hofmeister & Kai Wirtz
-!  Updated to FABM 1 by Nina Preußler
 !
 ! !LOCAL VARIABLES:
       real(rk) :: rFast, rSlow, NCrFdet, NCrSdet
@@ -111,9 +119,9 @@
    call self%register_state_variable(self%id_fdet, 'fdet', 'mmolC m**-3', 'fast detritus C',              4.e3_rk, minimum=0.0_rk)
    call self%register_state_variable(self%id_sdet, 'sdet', 'mmolC m**-3', 'slow detritus C',              4.e3_rk, minimum=0.0_rk)
    call self%register_state_variable(self%id_pdet, 'pdet', 'mmolP m**-3', 'detritus-P',                   4.e3_rk, minimum=0.0_rk)
-   call self%register_state_variable(self%id_po4,  'po4',  'mmolP m**-3', 'dissolved phosphate',          10._rk,  minimum=0.0_rk, standard_variable=standard_variables%mole_concentration_of_phosphate)
-   call self%register_state_variable(self%id_no3,  'no3',  'mmolN m**-3', 'dissolved nitrate',            20._rk,  minimum=0.0_rk, standard_variable=standard_variables%mole_concentration_of_nitrate)
-   call self%register_state_variable(self%id_nh3,  'nh3',  'mmolN m**-3', 'dissolved ammonium',           40._rk,  minimum=0.0_rk, standard_variable=standard_variables%mole_concentration_of_ammonium)
+   call self%register_state_variable(self%id_po4,  'po4',  'mmolP m**-3', 'dissolved phosphate',          10._rk,  minimum=0.0_rk)
+   call self%register_state_variable(self%id_no3,  'no3',  'mmolN m**-3', 'dissolved nitrate',            20._rk,  minimum=0.0_rk)
+   call self%register_state_variable(self%id_nh3,  'nh3',  'mmolN m**-3', 'dissolved ammonium',           40._rk,  minimum=0.0_rk)
    call self%register_state_variable(self%id_oxy,  'oxy',  'mmolO2 m**-3','dissolved oxygen',             100._rk, minimum=0.0_rk)
    call self%register_state_variable(self%id_odu,  'odu',  'mmol m**-3',  'dissolved reduced substances', 100._rk, minimum=0.0_rk)
 
@@ -128,18 +136,19 @@
 
    ! Register diagnostic variables
 
-   call self%register_diagnostic_variable(self%id_adsp,'adsP','mmolP m**-3','phosphate adsorption', output=output_instantaneous)
-   call self%register_diagnostic_variable(self%id_denit,'denit','mmol m**-3 d-1','denitrification rate', output=output_instantaneous)
+   call self%register_horizontal_diagnostic_variable(self%id_adsp,'adsP','mmolP m**-3','phosphate adsorption', & 
+      output=output_instantaneous, source=source_do_bottom)
+   call self%register_horizontal_diagnostic_variable(self%id_denit,'denit','mmol m**-3 d-1','denitrification rate', &
+     output=output_instantaneous, source=source_do_bottom)
 
    ! Register dependencies
    
-   call self%register_dependency(self%id_temp,standard_variables%temperature)
+   call self%register_dependency(self%id_temp,type_bottom_standard_variable(name='temperature_at_bottom',units='K'))
 
    return
 
-99 call self%fatal_error('hereon_omexdia_p_initialize','Error reading namelist hereon_omexdia_p.')
-
-100 call self%fatal_error('hereon_omexdia_p_initialize','Namelist hereon_omexdia_p was not found.')
+99 call self%fatal_error('hereon_omexdia_bottom_initialize','Error reading namelist hereon_omexdia_bottom.')
+100 call self%fatal_error('hereon_omexdia_bottom_initialize','Namelist hereon_omexdia_bottom was not found.')
 
    end subroutine initialize
 !EOC
@@ -150,16 +159,13 @@
 ! !IROUTINE: Right hand sides of OMEXDIA+P model
 !
 ! !INTERFACE:
-   subroutine do(self,_ARGUMENTS_DO_)
+   subroutine do_bottom(self,_ARGUMENTS_DO_BOTTOM_)
 !
 ! !DESCRIPTION:
 !
 ! !INPUT PARAMETERS:
-   class (type_hereon_omexdia_p),intent(in) :: self
-   _DECLARE_ARGUMENTS_DO_
-!
-! !REVISION HISTORY:
-!  Original author(s): Richard Hofmeister & Kai Wirtz
+   class (type_hereon_omexdia_bottom),intent(in) :: self
+   _DECLARE_ARGUMENTS_DO_BOTTOM_
 !
 ! !LOCAL VARIABLES:
    real(rk) :: fdet,sdet,oxy,odu,no3,nh3,pdet,po4
@@ -174,18 +180,18 @@
 !-----------------------------------------------------------------------
 !BOC
    ! Enter spatial loops (if any)
-   _LOOP_BEGIN_
+   _BOTTOM_LOOP_BEGIN_
 
    ! Retrieve current (local) state variable values.
-   _GET_(self%id_temp,temp_celsius)
-   _GET_(self%id_fdet,fdet)
-   _GET_(self%id_sdet,sdet)
-   _GET_(self%id_pdet,pdet)
-   _GET_(self%id_oxy,oxy)
-   _GET_(self%id_odu,odu)
-   _GET_(self%id_no3,no3)
-   _GET_(self%id_nh3,nh3)
-   _GET_(self%id_po4,po4)
+   _GET_HORIZONTAL_(self%id_temp,temp_celsius)
+   _GET_HORIZONTAL_(self%id_fdet,fdet)
+   _GET_HORIZONTAL_(self%id_sdet,sdet)
+   _GET_HORIZONTAL_(self%id_pdet,pdet)
+   _GET_HORIZONTAL_(self%id_oxy,oxy)
+   _GET_HORIZONTAL_(self%id_odu,odu)
+   _GET_HORIZONTAL_(self%id_no3,no3)
+   _GET_HORIZONTAL_(self%id_nh3,nh3)
+   _GET_HORIZONTAL_(self%id_po4,po4)
 
    temp_kelvin = 273.15_rk + temp_celsius
    E_a=0.1_rk*log(Q10b)*T0*(T0+10.0_rk);
@@ -224,24 +230,24 @@
 
 #define _CONV_UNIT_ /secs_pr_day
 ! reaction rates
-   _ADD_SOURCE_(self%id_fdet, -f_T * CprodF _CONV_UNIT_)
-   _ADD_SOURCE_(self%id_sdet, -f_T * CprodS _CONV_UNIT_)
-   _ADD_SOURCE_(self%id_oxy , (-OxicMin - 2.0_rk* Nitri - OduOx) _CONV_UNIT_) !RH 1.0->150/106*OxicMin (if [oxy]=mmolO2/m**3)
-   _ADD_SOURCE_(self%id_no3 , (-0.8_rk*Denitrific + Nitri) _CONV_UNIT_)     !RH 0.8-> ~104/106?
-   _ADD_SOURCE_(self%id_nh3 , (f_T * Nprod - Nitri) / (1.0_rk + self%NH3Ads) _CONV_UNIT_)
-   _ADD_SOURCE_(self%id_odu , (AnoxicMin - OduOx - OduDepo) _CONV_UNIT_)
-   _ADD_SOURCE_(self%id_po4 , (f_T * Pprod - radsP) _CONV_UNIT_)
-   _ADD_SOURCE_(self%id_pdet, (radsP - f_T * Pprod) _CONV_UNIT_)
+   _ADD_BOTTOM_SOURCE_(self%id_fdet, -f_T * CprodF _CONV_UNIT_)
+   _ADD_BOTTOM_SOURCE_(self%id_sdet, -f_T * CprodS _CONV_UNIT_)
+   _ADD_BOTTOM_SOURCE_(self%id_oxy , (-OxicMin - 2.0_rk* Nitri - OduOx) _CONV_UNIT_) !RH 1.0->150/106*OxicMin (if [oxy]=mmolO2/m**3)
+   _ADD_BOTTOM_SOURCE_(self%id_no3 , (-0.8_rk*Denitrific + Nitri) _CONV_UNIT_)     !RH 0.8-> ~104/106?
+   _ADD_BOTTOM_SOURCE_(self%id_nh3 , (f_T * Nprod - Nitri) / (1.0_rk + self%NH3Ads) _CONV_UNIT_)
+   _ADD_BOTTOM_SOURCE_(self%id_odu , (AnoxicMin - OduOx - OduDepo) _CONV_UNIT_)
+   _ADD_BOTTOM_SOURCE_(self%id_po4 , (f_T * Pprod - radsP) _CONV_UNIT_)
+   _ADD_BOTTOM_SOURCE_(self%id_pdet, (radsP - f_T * Pprod) _CONV_UNIT_)
 
    ! Export diagnostic variables
-   _SET_DIAGNOSTIC_(self%id_denit,Denitrific)
-   _SET_DIAGNOSTIC_(self%id_adsp ,radsP)
+   _SET_HORIZONTAL_DIAGNOSTIC_(self%id_denit,Denitrific)
+   _SET_HORIZONTAL_DIAGNOSTIC_(self%id_adsp ,radsP)
 
    ! Leave spatial loops (if any)
-   _LOOP_END_
+   _BOTTOM_LOOP_END_
 
-   end subroutine do
+   end subroutine do_bottom
 !EOC
 
-   end module hereon_omexdia_p
+   end module hereon_omexdia_bottom
 

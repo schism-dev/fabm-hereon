@@ -20,6 +20,10 @@ contains
       use hereon_light
       use hereon_omexdia_p
       use hereon_omexdia_bottom
+      use hereon_omexdia_n2o
+      use gotm_npzd
+      use gotm_ergom
+      use dobgcp_oxypom
 
       class (type_factory), intent(in) :: self
       character(*),         intent(in) :: name
@@ -30,6 +34,11 @@ contains
          case ('omexdia_p'); allocate(type_hereon_omexdia_p::model)
          case ('omexdia_bottom'); allocate(type_hereon_omexdia_bottom::model)
          end select
+         case ('omexdia_n2o'); allocate(type_hereon_omexdia_n2o::model)
+         case ('npzd');  allocate(type_gotm_npzd::model)
+         case ('ergom');  allocate(type_gotm_ergom::model)
+         case ('oxypom');  allocate(type_dobgcp_oxypom::model)
+      end select
 
    end subroutine
 

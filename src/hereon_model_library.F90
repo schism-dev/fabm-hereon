@@ -33,7 +33,6 @@ contains
          case ('light');  allocate(type_hereon_light::model)
          case ('omexdia_p'); allocate(type_hereon_omexdia_p::model)
          case ('omexdia_bottom'); allocate(type_hereon_omexdia_bottom::model)
-         end select
          case ('omexdia_n2o'); allocate(type_hereon_omexdia_n2o::model)
          case ('npzd');  allocate(type_gotm_npzd::model)
          case ('ergom');  allocate(type_gotm_ergom::model)

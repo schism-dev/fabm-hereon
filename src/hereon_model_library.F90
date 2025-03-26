@@ -1,3 +1,8 @@
+!! SPDX-FileCopyrightText: 2022-2025 Helmholtz-Zentrum hereon GmbH
+!! SPDX-License-Identifier: CC0-1.0
+!! SPDX-FileContributor Carsten Lemmen <carsten.lemmen@hereon.de>
+!! SPDX-FileContributor Nina Preußer <nina.preusser@stud.leuphana.de>
+
 module hereon_model_library
 
    use fabm_types, only: type_base_model_factory, type_base_model
@@ -21,9 +26,6 @@ contains
       use hereon_omexdia_p
       use hereon_omexdia_bottom
       use hereon_omexdia_n2o
-      use gotm_npzd
-      use gotm_ergom
-      use dobgcp_oxypom
 
       class (type_factory), intent(in) :: self
       character(*),         intent(in) :: name
@@ -34,9 +36,6 @@ contains
          case ('omexdia_p'); allocate(type_hereon_omexdia_p::model)
          case ('omexdia_bottom'); allocate(type_hereon_omexdia_bottom::model)
          case ('omexdia_n2o'); allocate(type_hereon_omexdia_n2o::model)
-         case ('npzd');  allocate(type_gotm_npzd::model)
-         case ('ergom');  allocate(type_gotm_ergom::model)
-         case ('oxypom');  allocate(type_dobgcp_oxypom::model)
       end select
 
    end subroutine

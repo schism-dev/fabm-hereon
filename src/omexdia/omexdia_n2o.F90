@@ -156,6 +156,10 @@
    !call self%register_state_variable(self%id_n2o_sat,  'n2o_sat',  '%', 'saturation of dissolved nitrous oxide',      0._rk, minimum=0.0_rk)
    call self%register_state_variable(self%id_manipulated_oxy,  'manipulated_oxy',  'mmolO2 m**-3','dissolved oxygen manipulated',             300._rk, minimum=0.0_rk)
 
+   ! to check mass balance
+   !call self%add_to_aggregate_variable(standard_variables%total_nitrogen, self%id_fdet)
+   !call self%add_to_aggregate_variable(standard_variables%total_nitrogen, self%id_sdet)
+
    call self%set_variable_property(self%id_fdet,'particulate',.true.)
    call self%set_variable_property(self%id_sdet,'particulate',.true.)
    call self%set_variable_property(self%id_pdet,'particulate',.true.)
@@ -205,6 +209,7 @@
    call self%register_dependency(self%id_depth,standard_variables%depth)
    call self%register_dependency(self%id_wind, standard_variables%wind_speed)
    call self%register_dependency(self%id_day_of_year, standard_variables%number_of_days_since_start_of_the_year)
+   !call self%register_dependency(self%id_total_nitrogen, standard_variables%total_nitrogen)
 
    return
 
@@ -306,9 +311,8 @@
    AnoxicMin  = Cprod*Anoxiclim *Rescale        ! anoxic mineralisation
 
 ! reoxidation and ODU deposition
+   nitri_yield_n2o = (1.52_rk / (oxy + 1.59_rk)) / 100._rk ! oxygen-dependent N2O yield from nitrification based on Tang et al. 2022
    Nitri      = f_T * self%rnit * nh3 * oxy/(oxy + self%ksO2nitri + relaxO2*(fdet + odu))
-   nitri_yield_n2o = (1.52_rk / (oxy + 1.59_rk)) * 1000._rk ! / 100._rk ! oxygen-dependent N2O yield from nitrification based on Tang et al. 2022
-   nitri_yield_n2o = 0._rk
    ! n2o_from_nitri = Nitri * self%n2o_emission_factor_nitri * 1000._rk ! 1000 because Nitri in mmol m3 and n2o in umol m-3
    n2o_yield_nitri_2 = 0.004_rk - 0.003_rk * (oxy/350) ! to get a yield between 0.1%
    n2o_from_nitri = Nitri * n2o_yield_nitri_2 * 1000._rk / 2 ! 1000 because Nitri in mmol m3 and n2o in umol m-3, and /2 because 2 N
@@ -368,8 +372,8 @@
    _SET_DIAGNOSTIC_(self%id_n2o_from_denitri,n2o_from_denitri)
    _SET_DIAGNOSTIC_(self%id_n2o_from_nitri,n2o_from_nitri)   
    _SET_DIAGNOSTIC_(self%id_n2o_from_denitri_tang,n2o_from_denitri_tang)
-   _SET_DIAGNOSTIC_(self%id_n2o_from_nitri_tang,8._rk) !n2o_from_nitri_tang)    
-   _SET_DIAGNOSTIC_(self%id_n2o_yield_nitri,10._rk) !nitri_yield_n2o)    
+   _SET_DIAGNOSTIC_(self%id_n2o_from_nitri_tang,n2o_from_nitri_tang)    
+   _SET_DIAGNOSTIC_(self%id_n2o_yield_nitri,nitri_yield_n2o)    
    _SET_DIAGNOSTIC_(self%id_din ,no3+nh3)
    _SET_DIAGNOSTIC_(self%id_oxy_manip_check , oxy_manip_diff)
 

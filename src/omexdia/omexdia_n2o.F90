@@ -58,6 +58,7 @@
       real(rk) :: no3_flux, nh3_flux ! 
       real(rk) :: wind_data_type
       real(rk) :: sv
+      !real(rk) :: fdet_summer, fdet_winter, sdet_summer, sdet_winter
 
       contains
 
@@ -103,6 +104,7 @@
       real(rk) :: oxy_increase, nh3_increase, oxy_coupling_control
       real(rk) :: oxy_manipulation, omz_oxy, omz_start, omz_end 
       real(rk) :: no3_flux, nh3_flux, wind_data_type
+      !real(rk) :: fdet_summer, fdet_winter, sdet_summer, sdet_winter
 
 
 !EOP
@@ -140,6 +142,12 @@
    call self%get_parameter(self%nh3_flux,'nh3_flux','mmolN m-3 d-1','increase of ammonium from horizontal transport ',default=0.3_rk)
    call self%get_parameter(self%wind_data_type,'wind_data_type','-','type of wind data used (hourly-1, seasonal-2, annual-3) ',default=1._rk)
    call self%get_parameter(self%sv, 'sv', 'm d-1', 'settling velocity POC', default=-0.5_rk) ! from oxypom
+   ! real(rk) :: fdet_summer, fdet_winter, sdet_summer, sdet_winter
+   !call self%get_parameter(self%fdet_summer, 'fdet_summer', 'mmolC m**-3', 'mean labile detritus concentration summer', default=40._rk) ! from oxypom
+   !call self%get_parameter(self%fdet_winter, 'fdet_winter', 'mmolC m**-3', 'mean labile detritus concentration winter', default=70._rk) ! from oxypom
+   !call self%get_parameter(self%sdet_summer, 'sdet_summer', 'mmolC m**-3', 'mean refractory detritus concentration summer', default=75.0_rk) ! from oxypom
+   !call self%get_parameter(self%sdet_winter, 'sdet_winter', 'mmolC m**-3', 'mean refractory detritus concentration winter', default=-0.5_rk) ! from oxypom
+
 
    ! Register state variables
    call self%register_state_variable(self%id_fdet, 'fdet', 'mmolC m**-3', 'fast detritus C',              4.e3_rk, minimum=0.0_rk)! , vertical_movement=self%sv*d_per_s
@@ -252,6 +260,9 @@
    real(rk) :: oxy_manipulation, omz_oxy, omz_start, omz_end 
    real(rk) :: no3_flux, nh3_flux, wind_data_type
    real(rk) :: n2o_yield_nitri_2
+   real(rk) :: monthly_fdet_mean(12), monthly_sdet_mean(12), expected_fdet, expected_sdet, fdet_flux, sdet_flux
+   integer  :: month_nr
+
 
 
 !EOP
@@ -324,11 +335,19 @@
    pDepo      = 0.0_rk
    OduDepo    = AnoxicMin*pDepo
 
+! determine fdet and sdet flux based on difference to average monthly measured values (2000-2010)
+   month_nr = ceiling(day_of_year / 30.5_rk)
+   monthly_fdet_mean = (/ 42.48_rk, 39.75_rk, 42.09_rk, 47.21_rk, 60.25_rk, 59.64_rk, 54.53_rk, 61.27_rk, 60.86_rk, 56.71_rk, 40.65_rk, 39.75_rk /)
+   monthly_sdet_mean = (/ 78.89_rk, 73.82_rk, 78.17_rk, 87.67_rk, 111.88_rk, 110.75_rk, 101.26_rk, 113.79_rk, 113.02_rk, 105.31_rk, 75.49_rk, 73.82_rk /)
+   expected_fdet = monthly_fdet_mean(month_nr)
+   expected_sdet = monthly_sdet_mean(month_nr)
+   fdet_flux = expected_fdet - fdet
+   sdet_flux = expected_sdet - sdet
 
 #define _CONV_UNIT_ /secs_pr_day
 ! reaction rates
-   _ADD_SOURCE_(self%id_fdet, -f_T * CprodF _CONV_UNIT_)
-   _ADD_SOURCE_(self%id_sdet, -f_T * CprodS _CONV_UNIT_)
+   _ADD_SOURCE_(self%id_fdet, (fdet_flux - f_T * CprodF) _CONV_UNIT_)
+   _ADD_SOURCE_(self%id_sdet, (sdet_flux - f_T * CprodS) _CONV_UNIT_)
    _ADD_SOURCE_(self%id_oxy , (-OxicMin - 2.0_rk* Nitri - OduOx) * self%oxy_coupling_control _CONV_UNIT_) !RH 1.0->150/106*OxicMin (if [oxy]=mmolO2/m**3)
    !_ADD_SOURCE_(self%id_oxy , self%oxy_increase ) ! added flux
    

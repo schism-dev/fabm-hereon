@@ -49,7 +49,7 @@
       real(rk) :: ksO2oduox, ksO2oxic,ksNO3denit,kinO2denit,kinNO3anox,kinO2anox
       real(rk) :: oxy_increase, nh3_increase, oxy_coupling_control
       real(rk) :: oxy_manipulation, omz_oxy, omz_start, omz_end ! parameters for oxygen minimum zone (OMZ) manipulation
-      real(rk) :: no3_flux_summer, nh3_flux_summer, no3_flux_winter, nh3_flux_winter ! 
+      !real(rk) :: no3_flux_summer, nh3_flux_summer, no3_flux_winter, nh3_flux_winter ! 
       real(rk) :: sv
       !real(rk) :: fdet_summer, fdet_winter, sdet_summer, sdet_winter
 

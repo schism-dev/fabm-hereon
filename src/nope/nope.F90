@@ -236,7 +236,7 @@
 
    subroutine do_surface(self, _ARGUMENTS_DO_SURFACE_)
 
-      class (type_hereon_omexdia_n2o),intent(in) :: self
+      class (type_hereon_nope),intent(in) :: self
       _DECLARE_ARGUMENTS_DO_SURFACE_
 
       real(rk) :: n2o_conc_w, n2o_conc_b
@@ -280,7 +280,7 @@
             END IF
          ! if annual mean average:
          ELSEIF (self%wind_data_type == 3._rk) THEN
-            wind_speed = wind_mean_annual
+            wind_speed = self%wind_mean_annual
          END IF
 
          temp_abs = 273.15_rk + temp ! absolute temperature (in K)

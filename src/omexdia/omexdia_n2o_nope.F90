@@ -40,7 +40,8 @@
       type (type_dependency_id)            :: id_temp, id_depth
       type (type_global_dependency_id)     :: id_day_of_year
       type (type_diagnostic_variable_id)   :: id_denit,id_adsp, id_nitri, id_oduox_check, id_oxicmin_check, id_anoxicminlim_check, id_denitrilim_check, id_oxicminlim_check
-      type (type_diagnostic_variable_id)   :: id_din, id_oxy_manip_check, id_oxy_uptake_sediments
+      type (type_diagnostic_variable_id)   :: id_din, id_oxy_manip_check
+      type (type_bottom_diagnostic_variable_id) :: id_oxy_uptake_sediments
 
 !     Model parameters
       real(rk) :: rFast, rSlow, NCrFdet, NCrSdet
@@ -389,7 +390,7 @@
          !_ADD_BOTTOM_FLUX_(self%id_nh3, sediment_release_nh3 _CONV_UNIT_)
         ! _ADD_BOTTOM_FLUX_(self%id_no3, -sediment_uptake_no3 _CONV_UNIT_)
 
-         _SET_DIAGNOSTIC_(self%id_oxy_uptake_sediments , oxy_consumption_sediments)
+         _SET_BOTTOM_DIAGNOSTIC_(self%id_oxy_uptake_sediments , oxy_consumption_sediments)
          
 
       _BOTTOM_LOOP_END_

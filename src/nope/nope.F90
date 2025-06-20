@@ -50,7 +50,7 @@
       type (type_surface_diagnostic_variable_id) :: id_k_wanninkhof, id_k_borges, id_Sc
 
 !     Model parameters
-      real(rk) :: n2o_emission_factor_nitri, n2o_emission_factor_denit
+      real(rk) :: n2o_emission_factor_nitri, n2o_emission_factor_denit, n2o_emission_factor_nitri_type
       real(rk) :: wind_data_type
       real(rk) :: wind_mean_annual, wind_mean_spring, wind_mean_summer, wind_mean_fall, wind_mean_winter
 
@@ -87,7 +87,7 @@
 !  Original author(s): Nina Preußler
 !
 ! !LOCAL VARIABLES:
-      real(rk) :: n2o_emission_factor_nitri, n2o_emission_factor_denit
+      real(rk) :: n2o_emission_factor_nitri, n2o_emission_factor_denit, n2o_emission_factor_nitri_type
       real(rk) :: wind_data_type
       real(rk) :: wind_mean_annual, wind_mean_spring, wind_mean_summer, wind_mean_fall, wind_mean_winter
 
@@ -101,6 +101,7 @@
 
    ! Register parameters
    call self%get_parameter(self%n2o_emission_factor_nitri,'n2o_emission_factor_nitri','','EF nitrification ',default=0.0025_rk)
+   call self%get_parameter(self%n2o_emission_factor_nitri_type,'n2o_emission_factor_nitri_type','','type of EF to use for nitri ',default=1._rk)
    call self%get_parameter(self%n2o_emission_factor_denit,'n2o_emission_factor_denit','','EF denitation ',default=0.01_rk)  
    call self%get_parameter(self%wind_data_type,'wind_data_type','-','type of wind data used (hourly-1, seasonal-2, annual-3) ',default=1._rk)
    call self%get_parameter(self%wind_mean_annual,'wind_mean_annual','m s**-1','yearly mean of wind speed',default=4.28_rk)
@@ -180,6 +181,7 @@
    real(rk) :: n2o_from_nitri, n2o_from_denit, n2o_yield_nitri
    real(rk) :: n2o_from_nitri_tang, n2o_from_denit_tang
    real(rk) :: n2o_yield_nitri_2
+   real(rk) :: n2o_yield_nitri_to_use
 
 
 !EOP
@@ -207,7 +209,21 @@
    n2o_yield_nitri = (1.52_rk / (oxy + 1.59_rk)) / 100._rk ! oxygen-dependent N2O yield from nitrification based on Tang et al. 2022
    ! n2o_from_nitri = nitri * self%n2o_emission_factor_nitri * 1000._rk ! 1000 because nitri in mmol m3 and n2o in umol m-3
    n2o_yield_nitri_2 = 0.004_rk - 0.003_rk * (oxy/350) ! to get a yield between 0.1% and 0.4%
-   n2o_from_nitri = nitri * self%n2o_emission_factor_nitri * 1000._rk / 2 ! 1000 because nitri in mmol m3 and n2o in umol m-3, and /2 because 2 N
+
+   ! depends on which emission factor / yield to use
+   ! 1: constant factor as defined with self%n2o_emission_factor_nitri
+   ! 2: factor between 0.1 and 0.4% calculated based on oxygen concentration (lower oxy = higher yield) 
+   ! 3: factor/yield using equation by Tang 2022
+   IF (self%n2o_emission_factor_nitri_type == 1.0) THEN
+      n2o_yield_nitri_to_use = self%n2o_emission_factor_nitri
+   ELSEIF  (self%n2o_emission_factor_nitri_type == 2.0) THEN
+      n2o_yield_nitri_to_use = n2o_yield_nitri_2
+   ELSE
+      n2o_yield_nitri_to_use = n2o_yield_nitri
+   END IF
+   
+   n2o_from_nitri = nitri * n2o_yield_nitri_to_use * 1000._rk / 2 ! 1000 because nitri in mmol m3 and n2o in umol m-3, and /2 because 2 N
+   
    n2o_from_nitri_tang = ( 1000._rk * oxy / (oxy+4.3_rk) ) * n2o_yield_nitri ! nitri * yield from Tang
 
 

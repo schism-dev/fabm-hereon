@@ -208,7 +208,8 @@
    ! N2O from nitrification
    n2o_yield_nitri = (1.52_rk / (oxy + 1.59_rk)) / 100._rk ! oxygen-dependent N2O yield from nitrification based on Tang et al. 2022
    ! n2o_from_nitri = nitri * self%n2o_emission_factor_nitri * 1000._rk ! 1000 because nitri in mmol m3 and n2o in umol m-3
-   n2o_yield_nitri_2 = 0.004_rk - 0.003_rk * (oxy/350) ! to get a yield between 0.1% and 0.4%
+   n2o_yield_nitri_2 = 0.004_rk - 0.003_rk * (oxy/300) ! to get a yield between 0.1% and 0.4% (de Wilde and de Bie, 2000)
+   !n2o_yield_nitri_2 = 0.4 * exp(-0.01 * oxy) / 100._rk ! to get curve instead of linear
 
    ! depends on which emission factor / yield to use
    ! 1: constant factor as defined with self%n2o_emission_factor_nitri

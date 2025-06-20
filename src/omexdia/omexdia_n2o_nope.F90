@@ -40,7 +40,7 @@
       type (type_dependency_id)            :: id_temp, id_depth
       type (type_global_dependency_id)     :: id_day_of_year
       type (type_diagnostic_variable_id)   :: id_denit,id_adsp, id_nitri, id_oduox_check, id_oxicmin_check, id_anoxicminlim_check, id_denitrilim_check, id_oxicminlim_check
-      type (type_diagnostic_variable_id)   :: id_din, id_oxy_manip_check
+      type (type_diagnostic_variable_id)   :: id_din, id_oxy_manip_check, id_oxy_uptake_sediments
 
 !     Model parameters
       real(rk) :: rFast, rSlow, NCrFdet, NCrSdet
@@ -52,6 +52,7 @@
       !real(rk) :: no3_flux_summer, nh3_flux_summer, no3_flux_winter, nh3_flux_winter ! 
       real(rk) :: sv
       !real(rk) :: fdet_summer, fdet_winter, sdet_summer, sdet_winter
+      real(rk) :: det_change, no3_change, nh3_change
 
       contains
 
@@ -94,6 +95,7 @@
       real(rk) :: ksO2oduox,ksO2oxic,ksNO3denit,kinO2denit,kinNO3anox,kinO2anox
       real(rk) :: oxy_increase, nh3_increase, oxy_coupling_control
       real(rk) :: oxy_manipulation, omz_oxy, omz_start, omz_end 
+      real(rk) :: det_change, no3_change, nh3_change
       !real(rk) :: no3_flux_summer, nh3_flux_summer,no3_flux_winter, nh3_flux_winter
       !real(rk) :: fdet_summer, fdet_winter, sdet_summer, sdet_winter
 
@@ -137,11 +139,14 @@
    !call self%get_parameter(self%fdet_winter, 'fdet_winter', 'mmolC m**-3', 'mean labile detritus concentration winter', default=70._rk) ! from oxypom
    !call self%get_parameter(self%sdet_summer, 'sdet_summer', 'mmolC m**-3', 'mean refractory detritus concentration summer', default=75.0_rk) ! from oxypom
    !call self%get_parameter(self%sdet_winter, 'sdet_winter', 'mmolC m**-3', 'mean refractory detritus concentration winter', default=-0.5_rk) ! from oxypom
+   call self%get_parameter(self%det_change,'det_change','-','detritus manipulation (fraction)',default=0._rk)
+   call self%get_parameter(self%no3_change,'no3_change','-','nitrate manipulation (fraction)',default=0._rk)
+   call self%get_parameter(self%nh3_change,'nh3_change','-','ammonium manipulation (fraction)',default=0._rk)
 
 
    ! Register state variables
-   call self%register_state_variable(self%id_fdet, 'fdet', 'mmolC m**-3', 'fast detritus C',              4.e3_rk, minimum=0.0_rk)! , vertical_movement=self%sv*d_per_s
-   call self%register_state_variable(self%id_sdet, 'sdet', 'mmolC m**-3', 'slow detritus C',              4.e3_rk, minimum=0.0_rk)
+   call self%register_state_variable(self%id_fdet, 'fdet', 'mmolC m**-3', 'fast detritus C',              4.e3_rk, minimum=0.0_rk, vertical_movement=self%sv*d_per_s)! , vertical_movement=self%sv*d_per_s
+   call self%register_state_variable(self%id_sdet, 'sdet', 'mmolC m**-3', 'slow detritus C',              4.e3_rk, minimum=0.0_rk, vertical_movement=self%sv*d_per_s)
    call self%register_state_variable(self%id_pdet, 'pdet', 'mmolP m**-3', 'detritus-P',                   4.e3_rk, minimum=0.0_rk)
    call self%register_state_variable(self%id_po4,  'po4',  'mmolP m**-3', 'dissolved phosphate',          10._rk,  minimum=0.0_rk, standard_variable=standard_variables%mole_concentration_of_phosphate)
    call self%register_state_variable(self%id_no3,  'no3',  'mmolN m**-3', 'dissolved nitrate',            20._rk,  minimum=0.0_rk, maximum=500._rk, standard_variable=standard_variables%mole_concentration_of_nitrate)
@@ -175,6 +180,9 @@
    call self%register_diagnostic_variable(self%id_anoxicminlim_check,'anoxicminlim_check','','Anoxic mineralization limitation', output=output_instantaneous)
    call self%register_diagnostic_variable(self%id_denitrilim_check,'denitrilim_check','','Denitrification limitation', output=output_instantaneous)
    call self%register_diagnostic_variable(self%id_oxy_manip_check,'oxy_manip_check',' ','is oxy manipulation working?', output=output_instantaneous)
+   call self%register_diagnostic_variable(self%id_din,'din','mmolN m**-3','dissolved inorganic nitrogen', output=output_instantaneous)
+   call self%register_diagnostic_variable(self%id_oxy_uptake_sediments,'oxy_uptake_sediments','mmolO2 m-2 d-1','oxygen uptake rate of sediments', output=output_instantaneous)
+   
 
    ! Register dependencies
    
@@ -273,12 +281,10 @@
 ! then the mineralisation rates
    OxicMin    = Cprod*Oxicminlim*Rescale        ! oxic mineralisation
    Denitrific = Cprod*Denitrilim*Rescale        ! Denitrification
-   !Denitrific = Denitrific - n2o_from_denitri
    AnoxicMin  = Cprod*Anoxiclim *Rescale        ! anoxic mineralisation
 
 ! reoxidation and ODU deposition
    Nitri      = f_T * self%rnit * nh3 * oxy/(oxy + self%ksO2nitri + relaxO2*(fdet + odu))
-   !Nitri      = Nitri - n2o_from_nitri
    OduOx      = f_T * self%rODUox * odu * oxy/(oxy + self%ksO2oduox + relaxO2*(nh3 + fdet))
 
 !  pDepo      = min(1.0_rk,0.233_rk*(wDepo)**0.336_rk )
@@ -363,24 +369,27 @@
       class (type_hereon_omexdia_n2o_nope),intent(in) :: self
       _DECLARE_ARGUMENTS_DO_BOTTOM_
 
+      ! local variables
       real(rk) :: bottom_temp
       real(rk) :: oxy_consumption_sediments
-      real(rk) :: sediment_release_nh3, sediment_uptake_no3
+      !real(rk) :: sediment_release_nh3, sediment_uptake_no3
 
       _BOTTOM_LOOP_BEGIN_
 
          ! Retrieve current (local) state variable values.
          _GET_(self%id_temp, bottom_temp)
 
-         oxy_consumption_sediments = 10.07_rk + 1.73_rk * bottom_temp ! temperature-dependent oxy consumption of sediments based on Spieckermann, 2021
+         oxy_consumption_sediments = 10.07_rk + 1.73_rk * bottom_temp ! UNIT=mmolO2 m-2 d-1? temperature-dependent oxy consumption of sediments based on Spieckermann, 2021
          
-         ! where is this data from?
-         sediment_release_nh3 = 129._rk * 24._rk / 1000.0_rk ! 129 umol m-2 h-1
-         sediment_uptake_no3 = 19._rk * 24._rk / 1000._rk ! -19 umol m-2 h-1
+         ! sediment-water-fluxes of nutrients (irrelevant because of forcing)
+         !sediment_release_nh3 = 129._rk * 24._rk / 1000.0_rk ! 129 umol m-2 h-1, from Deek et al. (2013)
+         !sediment_uptake_no3 = 19._rk * 24._rk / 1000._rk ! -19 umol m-2 h-1, from Deek et al. (2013)
 
          _ADD_BOTTOM_FLUX_(self%id_oxy, -oxy_consumption_sediments _CONV_UNIT_)
-         _ADD_BOTTOM_FLUX_(self%id_nh3, sediment_release_nh3 _CONV_UNIT_)
-         _ADD_BOTTOM_FLUX_(self%id_no3, -sediment_uptake_no3 _CONV_UNIT_)
+         !_ADD_BOTTOM_FLUX_(self%id_nh3, sediment_release_nh3 _CONV_UNIT_)
+        ! _ADD_BOTTOM_FLUX_(self%id_no3, -sediment_uptake_no3 _CONV_UNIT_)
+
+         _SET_DIAGNOSTIC_(self%id_oxy_uptake_sediments , oxy_consumption_sediments)
          
 
       _BOTTOM_LOOP_END_

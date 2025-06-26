@@ -204,47 +204,47 @@
    _GET_(self%id_nh3,nh3)
    _GET_(self%id_po4,po4)
 
-   !oxy = oxy_dep
-
+   ! auxiliary calculations
    temp_kelvin = 273.15_rk + temp_celsius
    E_a=0.1_rk*log(Q10b)*T0*(T0+10.0_rk);        
    f_T = 1.0_rk*exp(-E_a*(1.0_rk/temp_kelvin - 1.0_rk/T0))   
 
-   Oxicminlim = oxy/(oxy+self%ksO2oxic+relaxO2*(nh3+odu))                ! limitation terms
+   ! limitation terms
+   Oxicminlim = oxy/(oxy+self%ksO2oxic+relaxO2*(nh3+odu))                
    Denitrilim = (1.0_rk-oxy/(oxy+self%kinO2denit)) * NO3/(no3+self%ksNO3denit)
    Anoxiclim  = (1.0_rk-oxy/(oxy+self%kinO2anox)) * (1.0_rk-no3/(no3+self%kinNO3anox))
    Rescale    = 1.0_rk/(Oxicminlim+Denitrilim+Anoxiclim)
 
+   ! production of C and N from detritus decomposition
    CprodF = self%rFast * fdet
    CprodS = self%rSlow * sdet
    Cprod  = CprodF + CprodS
    Nprod  = CprodF * self%NCrFdet + CprodS * self%NCrSdet
 
-
-! PO4-adsorption ceases when critical capacity is reached
-! [FeS] approximated by ODU
+   ! PO4-adsorption ceases when critical capacity is reached
+   ! [FeS] approximated by ODU
    radsP  = self%PAds * self%rSlow * (po4*max(odu,self%PAdsODU))
    rP    = self%rFast * (1.0_rk - Oxicminlim)
    Pprod  = rP * pdet
 
-! Oxic mineralisation, denitrification, anoxic mineralisation
-! then the mineralisation rates
+   ! Oxic mineralisation, denitrification, anoxic mineralisation
+   ! then the mineralisation rates
    OxicMin    = Cprod*Oxicminlim*Rescale        ! oxic mineralisation
    Denitrific = Cprod*Denitrilim*Rescale        ! Denitrification
    AnoxicMin  = Cprod*Anoxiclim *Rescale        ! anoxic mineralisation
 
-! reoxidation and ODU deposition
+   ! reoxidation and ODU deposition
    Nitri      = f_T * self%rnit * nh3 * oxy/(oxy + self%ksO2nitri + relaxO2*(fdet + odu))
    OduOx      = f_T * self%rODUox * odu * oxy/(oxy + self%ksO2oduox + relaxO2*(nh3 + fdet))
 
-!  pDepo      = min(1.0_rk,0.233_rk*(wDepo)**0.336_rk )
+   ! pDepo      = min(1.0_rk,0.233_rk*(wDepo)**0.336_rk )
    pDepo      = 0.0_rk
    OduDepo    = AnoxicMin*pDepo
 
 #define _CONV_UNIT_ /secs_pr_day
 ! reaction rates
-   _ADD_SOURCE_(self%id_fdet, (fdet_flux - f_T * CprodF) _CONV_UNIT_)
-   _ADD_SOURCE_(self%id_sdet, (sdet_flux - f_T * CprodS) _CONV_UNIT_)
+   _ADD_SOURCE_(self%id_fdet, (- f_T * CprodF) _CONV_UNIT_)
+   _ADD_SOURCE_(self%id_sdet, (- f_T * CprodS) _CONV_UNIT_)
    _ADD_SOURCE_(self%id_oxy , (-OxicMin - 2.0_rk* Nitri - OduOx) _CONV_UNIT_) !RH 1.0->150/106*OxicMin (if [oxy]=mmolO2/m**3)
    _ADD_SOURCE_(self%id_no3 , (-0.8_rk*Denitrific + Nitri) _CONV_UNIT_)     !RH 0.8-> ~104/106? whut?
    _ADD_SOURCE_(self%id_nh3 , (f_T * Nprod - Nitri) / (1.0_rk + self%NH3Ads) _CONV_UNIT_)
@@ -256,7 +256,7 @@
    _SET_DIAGNOSTIC_(self%id_denit,Denitrific)
    _SET_DIAGNOSTIC_(self%id_nitri,Nitri)
    _SET_DIAGNOSTIC_(self%id_adsp ,radsP)
-   _SET_DIAGNOSTIC_(self%id_din ,no3+nh3)
+   _SET_DIAGNOSTIC_(self%id_din ,no3+nh3)     
 
    ! Leave spatial loops (if any)
    _LOOP_END_
@@ -279,7 +279,8 @@
          ! Retrieve current (local) state variable values.
          _GET_(self%id_temp, bottom_temp)
 
-         oxy_consumption_sediments = 10.07_rk + 1.73_rk * bottom_temp ! UNIT=mmolO2 m-2 d-1? temperature-dependent oxy consumption of sediments based on Spieckermann, 2021
+         ! calculate temperature-dependent oxygen uptake of sediments based on Spieckermann (2021)
+         oxy_consumption_sediments = 10.07_rk + 1.73_rk * bottom_temp ! in mmolO2 m-2 d-1
          
          ! sediment-water-fluxes of nutrients (irrelevant because of forcing + lack of data on seasonal fluctuations -> therefore not included)
          !sediment_release_nh3 = 129._rk * 24._rk / 1000.0_rk ! 129 umol m-2 h-1, from Deek et al. (2013)
@@ -287,7 +288,7 @@
 
          _ADD_BOTTOM_FLUX_(self%id_oxy, -oxy_consumption_sediments _CONV_UNIT_)
          !_ADD_BOTTOM_FLUX_(self%id_nh3, sediment_release_nh3 _CONV_UNIT_)
-        ! _ADD_BOTTOM_FLUX_(self%id_no3, -sediment_uptake_no3 _CONV_UNIT_)
+         ! _ADD_BOTTOM_FLUX_(self%id_no3, -sediment_uptake_no3 _CONV_UNIT_)
 
          _SET_BOTTOM_DIAGNOSTIC_(self%id_oxy_uptake_sediments , oxy_consumption_sediments)
          

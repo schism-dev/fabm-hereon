@@ -3,7 +3,7 @@
 !-----------------------------------------------------------------------
 !BOP
 !
-! !MODULE: hereon_nope --- Fortran 2003 version of OMEXDIA+P biogeochemical model
+! !MODULE: hereon_nope --- Fortran 2003 model of aquatic nitrous oxide production and emission
 !
 ! !INTERFACE:
    module hereon_nope
@@ -11,9 +11,20 @@
 ! !DESCRIPTION:
 !
 ! This module can be coupled with estuarine and coastal biogeochemical models to simulate 
-! nitrous oxide production and emission. It includes multiple alternative calculations of production
-! and emission rates based on different approaches used in the literature. The module was developed
-! for water column processes but could also be adapted to sediment processes.
+! nitrous oxide (N2O) production in the water column and its emission to the atmosphere. 
+!
+! It includes multiple alternatives for calculating of N2O production rates based on different
+! yields (% of NH3/NO3 converted in nitrification/denitrification that results in N2O). 
+! Furthermore, there are multiple options for calculating the N2O sea-air-flux (= emission rate):
+! three types of wind speed (hourly, seasonal, and annual average) and two equations for calculating
+! the gas transfer coefficient k.
+! 
+! The NOPE model must register the following as a dependency rom the biogeochemical model: 
+!  - a nitrification rate (mmolN m**-3 d**-1)
+!  - a denitrification rate (mmolN m**-3 d**-1)
+!  - the dissolved oxygen concentrations (mmolO2 m-3)
+! This is achieved in the "coupling" section of NOPE in the fabm.yaml file.
+! 
 !
 ! !USES:
    use fabm_types
@@ -36,23 +47,21 @@
 ! !PUBLIC DERIVED TYPES:
    type,extends(type_base_model) :: type_hereon_nope
 !     Variable identifiers
-      type (type_state_variable_id)        :: id_n2o_w, id_n2o_b, id_n2o_tang
+      type (type_state_variable_id)        :: id_n2o_w, id_n2o_b
 
       type (type_dependency_id)            :: id_temp, id_salinity
       type (type_dependency_id)            :: id_oxy, id_denit, id_nitri
-
       type (type_surface_dependency_id)    :: id_wind
       type (type_global_dependency_id)     :: id_day_of_year
 
       type (type_diagnostic_variable_id)   :: id_n2o_from_nitri, id_n2o_from_denit 
-      type (type_diagnostic_variable_id)   :: id_n2o_from_nitri_tang, id_n2o_from_denit_tang, id_n2o_yield_nitri
-      type (type_surface_diagnostic_variable_id) :: id_n2o_emit_w, id_n2o_emit_b, id_n2o_eq, id_n2o_sat
-      type (type_surface_diagnostic_variable_id) :: id_k_wanninkhof, id_k_borges, id_Sc
+      type (type_diagnostic_variable_id)   :: id_n2o_yield_nitri
+      type (type_surface_diagnostic_variable_id) :: id_n2o_emit_w, id_n2o_emit_b
+      type (type_surface_diagnostic_variable_id) :: id_n2o_eq, id_n2o_sat, id_Sc, id_k_wanninkhof, id_k_borges
 
 !     Model parameters
-      real(rk) :: n2o_emission_factor_nitri, n2o_emission_factor_denit, n2o_emission_factor_nitri_type
-      real(rk) :: wind_data_type
-      real(rk) :: wind_mean_annual, wind_mean_spring, wind_mean_summer, wind_mean_fall, wind_mean_winter
+      real(rk) :: n2o_emission_factor_nitri, n2o_emission_factor_nitri_type, n2o_emission_factor_denit
+      real(rk) :: wind_data_type, wind_mean_annual, wind_mean_spring, wind_mean_summer, wind_mean_fall, wind_mean_winter
 
       contains
 
@@ -70,13 +79,13 @@
 !-----------------------------------------------------------------------
 !BOP
 !
-! !IROUTINE: Initialise the OMEXDIA+P model
+! !IROUTINE: Initialise the NOPE model
 !
 ! !INTERFACE:
    subroutine initialize(self,configunit)
 !
 ! !DESCRIPTION:
-!  Here, the omexdia namelist is read and the variables exported
+!  Here, the namelist is read and the variables exported
 !  by the model are registered with FABM.
 !
 ! !INPUT PARAMETERS:
@@ -87,10 +96,8 @@
 !  Original author(s): Nina Preußler
 !
 ! !LOCAL VARIABLES:
-      real(rk) :: n2o_emission_factor_nitri, n2o_emission_factor_denit, n2o_emission_factor_nitri_type
-      real(rk) :: wind_data_type
-      real(rk) :: wind_mean_annual, wind_mean_spring, wind_mean_summer, wind_mean_fall, wind_mean_winter
-
+      real(rk) :: n2o_emission_factor_nitri, n2o_emission_factor_nitri_type, n2o_emission_factor_denit
+      real(rk) :: wind_data_type, wind_mean_annual, wind_mean_spring, wind_mean_summer, wind_mean_fall, wind_mean_winter
 
 !EOP
 !-----------------------------------------------------------------------
@@ -114,12 +121,9 @@
    ! Register state variables
    call self%register_state_variable(self%id_n2o_w,  'n2o_w',  'umolN2 m**-3', 'dissolved nitrous oxide for water-to-air flux based on Wanninkhof',      10._rk, minimum=0.0_rk)
    call self%register_state_variable(self%id_n2o_b,  'n2o_b',  'umolN2 m**-3', 'dissolved nitrous oxide for water-to-air flux based on Borges',      10._rk, minimum=0.0_rk)
-   call self%register_state_variable(self%id_n2o_tang,  'n2o_tang',  'umolN2 m**-3', 'dissolved nitrous oxide based on Tang',      10._rk, minimum=0.0_rk)
 
    call self%set_variable_property(self%id_n2o_w,'particulate',.false.)
    call self%set_variable_property(self%id_n2o_b,'particulate',.false.)
-   call self%set_variable_property(self%id_n2o_tang,'particulate',.false.)
-
 
    ! Register diagnostic variables
    call self%register_diagnostic_variable(self%id_n2o_emit_w,'n2o_emit_w','umol m**-2 d-1','rate of N2O emission based on Wanninkhof', output=output_instantaneous)
@@ -131,9 +135,7 @@
    call self%register_diagnostic_variable(self%id_n2o_sat,'n2o_sat','%','saturation of N2O', output=output_instantaneous)
    call self%register_diagnostic_variable(self%id_n2o_from_denit,'n2o_from_denit','umol m**-3 d-1','N2O production from denitation ', output=output_instantaneous)
    call self%register_diagnostic_variable(self%id_n2o_from_nitri,'n2o_from_nitri','umol m**-3 d-1','N2O production from nitrification ', output=output_instantaneous)
-   call self%register_diagnostic_variable(self%id_n2o_from_denit_tang,'n2o_from_denit_tang','umol m**-3 d-1','N2O production from denitation ', output=output_instantaneous)
-   call self%register_diagnostic_variable(self%id_n2o_from_nitri_tang,'n2o_from_nitri_tang','umol m**-3 d-1','N2O production from nitrification ', output=output_instantaneous)
-   call self%register_diagnostic_variable(self%id_n2o_yield_nitri,'n2o_yield_nitri','','oxygen-dependent N2O yield from nitrification based on Tang et al. (2022)', output=output_instantaneous)
+   call self%register_diagnostic_variable(self%id_n2o_yield_nitri,'n2o_yield_nitri','','N2O yield from nitrification', output=output_instantaneous)
 
 
    ! Register dependencies
@@ -177,11 +179,9 @@
 ! !LOCAL VARIABLES:
    real(rk) :: oxy
    real(rk) :: denit, nitri
-   real(rk) :: n2o_w, n2o_b, n2o_tang
-   real(rk) :: n2o_from_nitri, n2o_from_denit, n2o_yield_nitri
-   real(rk) :: n2o_from_nitri_tang, n2o_from_denit_tang
-   real(rk) :: n2o_yield_nitri_2
-   real(rk) :: n2o_yield_nitri_to_use
+   real(rk) :: n2o_w, n2o_b
+   real(rk) :: n2o_from_nitri, n2o_from_denit
+   real(rk) :: n2o_yield_nitri_to_use, n2o_yield_nitri_dynamic, n2o_yield_nitri_tang
 
 
 !EOP
@@ -194,9 +194,6 @@
    _GET_(self%id_denit,denit)
    _GET_(self%id_nitri,nitri)
    _GET_(self%id_oxy,oxy)
-   !_GET_(self%id_n2o_w,n2o_w)
-   !_GET_(self%id_n2o_b,n2o_b)
-   !_GET_(self%id_n2o_tang,n2o_tang)
 
 
    ! N2O from denitrification
@@ -206,10 +203,8 @@
    n2o_from_denit_tang = n2o_from_denit_tang - 2.5_rk * exp(-0.47_rk*oxy) ! oxygen-dependent consumption of n2o via complete denitation
 
    ! N2O from nitrification
-   n2o_yield_nitri = (1.52_rk / (oxy + 1.59_rk)) / 100._rk ! oxygen-dependent N2O yield from nitrification based on Tang et al. 2022
-   ! n2o_from_nitri = nitri * self%n2o_emission_factor_nitri * 1000._rk ! 1000 because nitri in mmol m3 and n2o in umol m-3
-   n2o_yield_nitri_2 = 0.004_rk - 0.003_rk * (oxy/300) ! to get a yield between 0.1% and 0.4% (de Wilde and de Bie, 2000)
-   !n2o_yield_nitri_2 = 0.4 * exp(-0.01 * oxy) / 100._rk ! to get curve instead of linear
+   n2o_yield_nitri_dynamic = 0.004_rk - 0.003_rk * (oxy/300) ! to get a yield between 0.1% and 0.4% (de Wilde and de Bie, 2000)
+   n2o_yield_nitri_tang = (1.52_rk / (oxy + 1.59_rk)) / 100._rk ! oxygen-dependent N2O yield from nitrification based on Tang et al. 2022
 
    ! depends on which emission factor / yield to use
    ! 1: constant factor as defined with self%n2o_emission_factor_nitri
@@ -218,14 +213,14 @@
    IF (self%n2o_emission_factor_nitri_type == 1.0) THEN
       n2o_yield_nitri_to_use = self%n2o_emission_factor_nitri
    ELSEIF  (self%n2o_emission_factor_nitri_type == 2.0) THEN
-      n2o_yield_nitri_to_use = n2o_yield_nitri_2
+      n2o_yield_nitri_to_use = n2o_yield_nitri_dynamic
    ELSE
-      n2o_yield_nitri_to_use = n2o_yield_nitri
+      n2o_yield_nitri_to_use = n2o_yield_nitri_tang
    END IF
    
    n2o_from_nitri = nitri * n2o_yield_nitri_to_use * 1000._rk / 2 ! 1000 because nitri in mmol m3 and n2o in umol m-3, and /2 because 2 N
    
-   n2o_from_nitri_tang = ( 1000._rk * oxy / (oxy+4.3_rk) ) * n2o_yield_nitri ! nitri * yield from Tang
+   n2o_from_nitri_tang = ( 1000._rk * oxy / (oxy+4.3_rk) ) * n2o_yield_nitri_tang ! nitri * yield from Tang
 
 
 #define _CONV_UNIT_ /secs_pr_day
@@ -233,14 +228,13 @@
 ! reaction rates
    _ADD_SOURCE_(self%id_n2o_w, (n2o_from_denit + n2o_from_nitri) _CONV_UNIT_)   
    _ADD_SOURCE_(self%id_n2o_b, (n2o_from_denit + n2o_from_nitri) _CONV_UNIT_)   
-   _ADD_SOURCE_(self%id_n2o_tang, (n2o_from_denit_tang + n2o_from_nitri_tang) _CONV_UNIT_) 
    !_ADD_SOURCE_(self%id_no3 , 0 _CONV_UNIT_)   how can I maintain mass balance? 
    !_ADD_SOURCE_(self%id_nh3 , 0 _CONV_UNIT_)
 
    ! Export diagnostic variables
    _SET_DIAGNOSTIC_(self%id_n2o_from_denit,n2o_from_denit)
    _SET_DIAGNOSTIC_(self%id_n2o_from_nitri,n2o_from_nitri)  
-   _SET_DIAGNOSTIC_(self%id_n2o_yield_nitri,n2o_yield_nitri)     
+   _SET_DIAGNOSTIC_(self%id_n2o_yield_nitri,n2o_yield_nitri_to_use)     
    _SET_DIAGNOSTIC_(self%id_n2o_from_denit_tang,n2o_from_denit_tang)
    _SET_DIAGNOSTIC_(self%id_n2o_from_nitri_tang,n2o_from_nitri_tang)    
 
@@ -327,9 +321,7 @@
          _SET_SURFACE_DIAGNOSTIC_(self%id_n2o_sat, n2o_sat)
 
          _ADD_SURFACE_FLUX_(self%id_n2o_b,-n2o_sea_air_flux_b _CONV_UNIT_)
-         _ADD_SURFACE_FLUX_(self%id_n2o_w,-n2o_sea_air_flux_w _CONV_UNIT_)
-         _ADD_SURFACE_FLUX_(self%id_n2o_tang,-n2o_sea_air_flux_b _CONV_UNIT_)
-         
+         _ADD_SURFACE_FLUX_(self%id_n2o_w,-n2o_sea_air_flux_w _CONV_UNIT_)         
 
       _SURFACE_LOOP_END_
 

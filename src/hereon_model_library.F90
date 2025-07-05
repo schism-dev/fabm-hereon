@@ -25,8 +25,7 @@ contains
       use hereon_light
       use hereon_omexdia_p
       use hereon_omexdia_bottom
-      use hereon_omexdia_n2o
-      use hereon_omexdia_n2o_nope
+      use hereon_omexdia_for_nope
       use hereon_nope
 
       class (type_factory), intent(in) :: self
@@ -37,8 +36,7 @@ contains
          case ('light');  allocate(type_hereon_light::model)
          case ('omexdia_p'); allocate(type_hereon_omexdia_p::model)
          case ('omexdia_bottom'); allocate(type_hereon_omexdia_bottom::model)
-         case ('omexdia_n2o'); allocate(type_hereon_omexdia_n2o::model)
-         case ('omexdia_n2o_nope'); allocate(type_hereon_omexdia_n2o_nope::model)
+         case ('omexdia_n2o_nope'); allocate(type_hereon_omexdia_for_nope::model)
          case ('nope'); allocate(type_hereon_nope::model)
       end select
 

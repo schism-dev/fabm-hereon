@@ -8,8 +8,7 @@ add_library(fabm_models_hereon OBJECT
    light/light.F90
 	omexdia/omexdia_p.F90
 	omexdia/omexdia_bottom.F90
-   omexdia/omexdia_n2o.F90
-   omexdia/omexdia_n2o_nope.F90
+   omexdia/omexdia_for_nope.F90
    nope/nope.F90
 )
 

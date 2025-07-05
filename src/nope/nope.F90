@@ -20,8 +20,8 @@
 ! the gas transfer coefficient k.
 ! 
 ! The NOPE model must register the following as a dependency rom the biogeochemical model: 
-!  - a nitrification rate (mmolN m**-3 d**-1)
-!  - a denitrification rate (mmolN m**-3 d**-1)
+!  - a nitrification rate (mmolN m-3 d-1)
+!  - a denitrification rate (mmolN m-3 d-1)
 !  - the dissolved oxygen concentrations (mmolO2 m-3)
 ! This is achieved in the "coupling" section of NOPE in the fabm.yaml file.
 ! 
@@ -107,42 +107,42 @@
 
 
    ! Register parameters
-   call self%get_parameter(self%n2o_emission_factor_nitri,'n2o_emission_factor_nitri','','EF nitrification ',default=0.0025_rk)
-   call self%get_parameter(self%n2o_emission_factor_nitri_type,'n2o_emission_factor_nitri_type','','type of EF to use for nitri ',default=1._rk)
-   call self%get_parameter(self%n2o_emission_factor_denit,'n2o_emission_factor_denit','','EF denitation ',default=0.01_rk)  
-   call self%get_parameter(self%wind_data_type,'wind_data_type','-','type of wind data used (hourly-1, seasonal-2, annual-3) ',default=1._rk)
-   call self%get_parameter(self%wind_mean_annual,'wind_mean_annual','m s**-1','yearly mean of wind speed',default=4.28_rk)
-   call self%get_parameter(self%wind_mean_spring,'wind_mean_spring','m s**-1','mean of wind speed in spring',default=1._rk)
-   call self%get_parameter(self%wind_mean_summer,'wind_mean_summer','m s**-1','mean of wind speed in summer',default=2._rk)
-   call self%get_parameter(self%wind_mean_fall,'wind_mean_fall','m s**-1','mean of wind speed in fall',default=3._rk)
-   call self%get_parameter(self%wind_mean_winter,'wind_mean_winter','m s**-1','mean of wind speed in winter',default=4._rk)
+   call self%get_parameter(self%n2o_emission_factor_nitri,'n2o_emission_factor_nitri','','emission factor nitrification ',default=0.0025_rk)
+   call self%get_parameter(self%n2o_emission_factor_nitri_type,'n2o_emission_factor_nitri_type','','emission factor to use for nitri (1=constant, 2=dynamic, 3=based on Tang)',default=1._rk)
+   call self%get_parameter(self%n2o_emission_factor_denit,'n2o_emission_factor_denit','','emission factor denitrification ',default=0.003_rk)  
+   call self%get_parameter(self%wind_data_type,'wind_data_type','-','type of wind data used (1=hourly, 2=seasonal, 3=annual) ',default=1._rk)
+   call self%get_parameter(self%wind_mean_annual,'wind_mean_annual','m s-1','annual mean of wind speed',default=4.28_rk)
+   call self%get_parameter(self%wind_mean_spring,'wind_mean_spring','m s-1','mean of wind speed in spring',default=4.45_rk)
+   call self%get_parameter(self%wind_mean_summer,'wind_mean_summer','m s-1','mean of wind speed in summer',default=3.75_rk)
+   call self%get_parameter(self%wind_mean_fall,'wind_mean_fall','m s-1','mean of wind speed in fall',default=3.93_rk)
+   call self%get_parameter(self%wind_mean_winter,'wind_mean_winter','m s-1','mean of wind speed in winter',default=5._rk)
 
 
    ! Register state variables
-   call self%register_state_variable(self%id_n2o_w,  'n2o_w',  'umolN2 m**-3', 'dissolved nitrous oxide for water-to-air flux based on Wanninkhof',      10._rk, minimum=0.0_rk)
-   call self%register_state_variable(self%id_n2o_b,  'n2o_b',  'umolN2 m**-3', 'dissolved nitrous oxide for water-to-air flux based on Borges',      10._rk, minimum=0.0_rk)
+   call self%register_state_variable(self%id_n2o_w,  'n2o_w',  'umolN2 m-3', 'dissolved nitrous oxide for water-to-air flux based on Wanninkhof',      10._rk, minimum=0.0_rk)
+   call self%register_state_variable(self%id_n2o_b,  'n2o_b',  'umolN2 m-3', 'dissolved nitrous oxide for water-to-air flux based on Borges',      10._rk, minimum=0.0_rk)
 
    call self%set_variable_property(self%id_n2o_w,'particulate',.false.)
    call self%set_variable_property(self%id_n2o_b,'particulate',.false.)
 
    ! Register diagnostic variables
-   call self%register_diagnostic_variable(self%id_n2o_emit_w,'n2o_emit_w','umol m**-2 d-1','rate of N2O emission based on Wanninkhof', output=output_instantaneous)
-   call self%register_diagnostic_variable(self%id_n2o_emit_b,'n2o_emit_b','umol m**-2 d-1','rate of N2O emission based on Borges', output=output_instantaneous)
-   call self%register_diagnostic_variable(self%id_n2o_eq,'n2o_eq','umol m**-3','N2O concentration equilibrated with atmosphere', output=output_instantaneous)
-   call self%register_diagnostic_variable(self%id_k_wanninkhof,'k_wanninkhof','cm h**-1','gas transfer velocity calculated with Wanninkhof equation', output=output_instantaneous)
-   call self%register_diagnostic_variable(self%id_k_borges,'k_borges','cm h**-1','gas transfer velocity based on Borges', output=output_instantaneous)
+   call self%register_diagnostic_variable(self%id_n2o_emit_w,'n2o_emit_w','umol m-2 d-1','rate of N2O emission based on Wanninkhof', output=output_instantaneous)
+   call self%register_diagnostic_variable(self%id_n2o_emit_b,'n2o_emit_b','umol m-2 d-1','rate of N2O emission based on Borges', output=output_instantaneous)
+   call self%register_diagnostic_variable(self%id_n2o_eq,'n2o_eq','umol m-3','N2O concentration equilibrated with atmosphere', output=output_instantaneous)
+   call self%register_diagnostic_variable(self%id_k_wanninkhof,'k_wanninkhof','cm h-1','gas transfer velocity calculated with Wanninkhof equation', output=output_instantaneous)
+   call self%register_diagnostic_variable(self%id_k_borges,'k_borges','cm h-1','gas transfer velocity based on Borges', output=output_instantaneous)
    call self%register_diagnostic_variable(self%id_Sc,'Sc','','Schmidt number', output=output_instantaneous)
    call self%register_diagnostic_variable(self%id_n2o_sat,'n2o_sat','%','saturation of N2O', output=output_instantaneous)
-   call self%register_diagnostic_variable(self%id_n2o_from_denit,'n2o_from_denit','umol m**-3 d-1','N2O production from denitation ', output=output_instantaneous)
-   call self%register_diagnostic_variable(self%id_n2o_from_nitri,'n2o_from_nitri','umol m**-3 d-1','N2O production from nitrification ', output=output_instantaneous)
+   call self%register_diagnostic_variable(self%id_n2o_from_denit,'n2o_from_denit','umol m-3 d-1','N2O production from denitation ', output=output_instantaneous)
+   call self%register_diagnostic_variable(self%id_n2o_from_nitri,'n2o_from_nitri','umol m-3 d-1','N2O production from nitrification ', output=output_instantaneous)
    call self%register_diagnostic_variable(self%id_n2o_yield_nitri,'n2o_yield_nitri','','N2O yield from nitrification', output=output_instantaneous)
 
 
    ! Register dependencies
    ! from biogeochemical model
-   call self%register_dependency(self%id_denit, 'denit', 'mmolN m**-3 d**-1', 'denitation rate')
-   call self%register_dependency(self%id_nitri, 'nitri', 'mmolN m**-3 d**-1', 'nitrification rate')
-   call self%register_dependency(self%id_oxy, 'oxy', 'mmolO2 m**-3 d**-1', 'dissolved oxygen concentration')
+   call self%register_dependency(self%id_denit, 'denit', 'mmolN m-3 d-1', 'denitation rate')
+   call self%register_dependency(self%id_nitri, 'nitri', 'mmolN m-3 d-1', 'nitrification rate')
+   call self%register_dependency(self%id_oxy, 'oxy', 'mmolO2 m-3 d-1', 'dissolved oxygen concentration')
    ! from hydrodynamic host (e.g., GOTM)
    call self%register_dependency(self%id_temp,standard_variables%temperature)
    call self%register_dependency(self%id_salinity,standard_variables%practical_salinity)
@@ -199,11 +199,12 @@
    ! N2O from denitrification
    ! reference + explanation numbers
    n2o_from_denit = denit * self%n2o_emission_factor_denit * 0.8_rk * 1000._rk / 2 ! see 0.8 below for nitrate reduction, but why? ! emission factor from Beaulieau et al. (2011)
-   n2o_from_denit_tang = 1.5_rk * exp(-0.17_rk*oxy) ! oxygen-dependent production from denitri
-   n2o_from_denit_tang = n2o_from_denit_tang - 2.5_rk * exp(-0.47_rk*oxy) ! oxygen-dependent consumption of n2o via complete denitation
 
    ! N2O from nitrification
-   n2o_yield_nitri_dynamic = 0.004_rk - 0.003_rk * (oxy/300) ! to get a yield between 0.1% and 0.4% (de Wilde and de Bie, 2000)
+   n2o_yield_nitri_dynamic = 0.004_rk - 0.003_rk * (oxy/400._rk) ! to get a yield between 0.1% and 0.4% (de Wilde and de Bie, 2000)
+   !IF (n2o_yield_nitri_dynamic < 0._rk) THEN
+    !  n2o_yield_nitri_dynamic = 0._rk
+   !END IF
    n2o_yield_nitri_tang = (1.52_rk / (oxy + 1.59_rk)) / 100._rk ! oxygen-dependent N2O yield from nitrification based on Tang et al. 2022
 
    ! depends on which emission factor / yield to use
@@ -220,8 +221,6 @@
    
    n2o_from_nitri = nitri * n2o_yield_nitri_to_use * 1000._rk / 2 ! 1000 because nitri in mmol m3 and n2o in umol m-3, and /2 because 2 N
    
-   n2o_from_nitri_tang = ( 1000._rk * oxy / (oxy+4.3_rk) ) * n2o_yield_nitri_tang ! nitri * yield from Tang
-
 
 #define _CONV_UNIT_ /secs_pr_day
 
@@ -235,8 +234,6 @@
    _SET_DIAGNOSTIC_(self%id_n2o_from_denit,n2o_from_denit)
    _SET_DIAGNOSTIC_(self%id_n2o_from_nitri,n2o_from_nitri)  
    _SET_DIAGNOSTIC_(self%id_n2o_yield_nitri,n2o_yield_nitri_to_use)     
-   _SET_DIAGNOSTIC_(self%id_n2o_from_denit_tang,n2o_from_denit_tang)
-   _SET_DIAGNOSTIC_(self%id_n2o_from_nitri_tang,n2o_from_nitri_tang)    
 
    ! Leave spatial loops (if any)
    _LOOP_END_
@@ -302,8 +299,6 @@
 
          Sc = 2141.2_rk + (-152.56_rk) * temp + 5.8963_rk * temp ** 2.0_rk + (-0.12411_rk) * temp ** 3.0_rk + 0.0010655_rk * temp ** 4.0_rk ! based on Wanninkhof (2014)
          
-         !wind_speed = 4.28_rk
-
          k_wanninkhof = 0.39_rk * wind_speed**2 * (Sc / 660.0_rk)**(-0.5) ! based on Wanninkhof
          k_borges = 0.24_rk * (4.045_rk+2.58_rk*wind_speed) * (Sc/600._rk)**(-0.5) ! based on Borges (as used by Brase et al., 2017)
          

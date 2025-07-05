@@ -18,7 +18,6 @@
 !  - nitrification rate as diagnostics
 !  - DIN (dissolved inorganic nitrogen; nitrate + ammonium) as a diagnostic
 !  - a bottom process of sediment oxygen uptake and a respective diagnostic
-!  - sediment-water fluxes of nutrients (NH3 and NO3), but this segment of code was deactivated due to nudging of NO3 and NH3
 !
 ! !USES:
    use fabm_types
@@ -44,7 +43,7 @@
       type (type_state_variable_id)        :: id_fdet,id_sdet,id_pdet
       type (type_state_variable_id)        :: id_no3,id_nh3,id_oxy,id_po4,id_odu
       type (type_dependency_id)            :: id_temp
-      type (type_diagnostic_variable_id)   :: id_denit,id_adsp, id_nitri
+      type (type_diagnostic_variable_id)   :: id_denit,id_adsp, id_nitri, id_test1, id_test2
       type (type_diagnostic_variable_id)   :: id_din
       type (type_bottom_diagnostic_variable_id) :: id_oxy_uptake_sediments
 
@@ -124,8 +123,8 @@
    call self%register_state_variable(self%id_sdet, 'sdet', 'mmolC m**-3', 'slow detritus C',              4.e3_rk, minimum=0.0_rk)
    call self%register_state_variable(self%id_pdet, 'pdet', 'mmolP m**-3', 'detritus-P',                   4.e3_rk, minimum=0.0_rk)
    call self%register_state_variable(self%id_po4,  'po4',  'mmolP m**-3', 'dissolved phosphate',          10._rk,  minimum=0.0_rk, standard_variable=standard_variables%mole_concentration_of_phosphate)
-   call self%register_state_variable(self%id_no3,  'no3',  'mmolN m**-3', 'dissolved nitrate',            20._rk,  minimum=0.0_rk, maximum=500._rk, standard_variable=standard_variables%mole_concentration_of_nitrate)
-   call self%register_state_variable(self%id_nh3,  'nh3',  'mmolN m**-3', 'dissolved ammonium',           40._rk,  minimum=0.0_rk, maximum= 50._rk, standard_variable=standard_variables%mole_concentration_of_ammonium)
+   call self%register_state_variable(self%id_no3,  'no3',  'mmolN m**-3', 'dissolved nitrate',            20._rk,  minimum=0.0_rk, standard_variable=standard_variables%mole_concentration_of_nitrate)
+   call self%register_state_variable(self%id_nh3,  'nh3',  'mmolN m**-3', 'dissolved ammonium',           40._rk,  minimum=0.0_rk, standard_variable=standard_variables%mole_concentration_of_ammonium)
    call self%register_state_variable(self%id_oxy,  'oxy',  'mmolO2 m**-3','dissolved oxygen',             300._rk, minimum=0.0_rk)
    call self%register_state_variable(self%id_odu,  'odu',  'mmol m**-3',  'dissolved reduced substances', 100._rk, minimum=0.0_rk)
 
@@ -145,7 +144,9 @@
    call self%register_diagnostic_variable(self%id_nitri,'nitri','mmol m**-3 d-1','nitrification rate', output=output_instantaneous)
    call self%register_diagnostic_variable(self%id_din,'din','mmolN m**-3','dissolved inorganic nitrogen', output=output_instantaneous)
    call self%register_diagnostic_variable(self%id_oxy_uptake_sediments,'oxy_uptake_sediments','mmolO2 m-2 d-1','oxygen uptake rate of sediments', output=output_instantaneous)
-   
+   call self%register_diagnostic_variable(self%id_test1,'test1','mmol m**-3 d-1','denitrification rate', output=output_instantaneous)
+   call self%register_diagnostic_variable(self%id_test2,'test2','mmol m**-3 d-1','denitrification rate', output=output_instantaneous)
+
 
    ! Register dependencies
    call self%register_dependency(self%id_temp,standard_variables%temperature)
@@ -256,14 +257,17 @@
    _SET_DIAGNOSTIC_(self%id_denit,Denitrific)
    _SET_DIAGNOSTIC_(self%id_nitri,Nitri)
    _SET_DIAGNOSTIC_(self%id_adsp ,radsP)
-   _SET_DIAGNOSTIC_(self%id_din ,no3+nh3)     
+   _SET_DIAGNOSTIC_(self%id_din ,no3+nh3)   
+   _SET_DIAGNOSTIC_(self%id_test1,2.0_rk* Nitri _CONV_UNIT_)
+   _SET_DIAGNOSTIC_(self%id_test2,OxicMin _CONV_UNIT_)
+  
 
    ! Leave spatial loops (if any)
    _LOOP_END_
 
    end subroutine do
 
-   !!! NEW: do_bottom
+
    subroutine do_bottom(self, _ARGUMENTS_DO_BOTTOM_)
 
       class (type_hereon_omexdia_for_nope),intent(in) :: self
@@ -272,7 +276,6 @@
       ! local variables
       real(rk) :: bottom_temp
       real(rk) :: oxy_consumption_sediments
-      !real(rk) :: sediment_release_nh3, sediment_uptake_no3
 
       _BOTTOM_LOOP_BEGIN_
 
@@ -281,14 +284,8 @@
 
          ! calculate temperature-dependent oxygen uptake of sediments based on Spieckermann (2021)
          oxy_consumption_sediments = 10.07_rk + 1.73_rk * bottom_temp ! in mmolO2 m-2 d-1
-         
-         ! sediment-water-fluxes of nutrients (irrelevant because of forcing + lack of data on seasonal fluctuations -> therefore not included)
-         !sediment_release_nh3 = 129._rk * 24._rk / 1000.0_rk ! 129 umol m-2 h-1, from Deek et al. (2013)
-         !sediment_uptake_no3 = 19._rk * 24._rk / 1000._rk ! -19 umol m-2 h-1, from Deek et al. (2013)
 
          _ADD_BOTTOM_FLUX_(self%id_oxy, -oxy_consumption_sediments _CONV_UNIT_)
-         !_ADD_BOTTOM_FLUX_(self%id_nh3, sediment_release_nh3 _CONV_UNIT_)
-         ! _ADD_BOTTOM_FLUX_(self%id_no3, -sediment_uptake_no3 _CONV_UNIT_)
 
          _SET_BOTTOM_DIAGNOSTIC_(self%id_oxy_uptake_sediments , oxy_consumption_sediments)
          
@@ -296,8 +293,6 @@
       _BOTTOM_LOOP_END_
 
    end subroutine do_bottom
-
-
 
 !EOC
 

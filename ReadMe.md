@@ -5,6 +5,8 @@ This is a collection of [FABM](https://fabm.net) models developed at Helmholtz-Z
 1. a port of the GOTM light model with horizontal parameter variation
 2. the OmexDia model with added phosphorous
 3. the OmexDia model as a bottom representation (in development)
+4. a module for nitrous oxide production and emission (NOPE)
+5. the OmexDia model adjusted to enable coupling with NOPE
 
 ## How to build
 

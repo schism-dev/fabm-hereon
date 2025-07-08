@@ -19,7 +19,7 @@
 ! three types of wind speed (hourly, seasonal, and annual average) and two equations for calculating
 ! the gas transfer coefficient k.
 ! 
-! The NOPE model must register the following as a dependency rom the biogeochemical model: 
+! The NOPE model must register the following as a dependency from the biogeochemical model it is coupled to: 
 !  - a nitrification rate (mmolN m-3 d-1)
 !  - a denitrification rate (mmolN m-3 d-1)
 !  - the dissolved oxygen concentrations (mmolO2 m-3)
@@ -206,6 +206,7 @@
     !  n2o_yield_nitri_dynamic = 0._rk
    !END IF
    n2o_yield_nitri_tang = (1.52_rk / (oxy + 1.59_rk)) / 100._rk ! oxygen-dependent N2O yield from nitrification based on Tang et al. 2022
+   n2o_yield_nitri_tang = (0.3889_rk / oxy + 0.2197_rk) / 100._rk ! oxygen-dependent N2O yield from nitrification based on Tang et al. 2024
 
    ! depends on which emission factor / yield to use
    ! 1: constant factor as defined with self%n2o_emission_factor_nitri

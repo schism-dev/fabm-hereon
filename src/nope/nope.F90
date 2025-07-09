@@ -130,7 +130,7 @@
    call self%register_diagnostic_variable(self%id_n2o_emit_b,'n2o_emit_b','umol m-2 d-1','rate of N2O emission based on Borges', output=output_instantaneous)
    call self%register_diagnostic_variable(self%id_n2o_eq,'n2o_eq','umol m-3','N2O concentration equilibrated with atmosphere', output=output_instantaneous)
    call self%register_diagnostic_variable(self%id_k_wanninkhof,'k_wanninkhof','cm h-1','gas transfer velocity calculated with Wanninkhof equation', output=output_instantaneous)
-   call self%register_diagnostic_variable(self%id_k_borges,'k_borges','cm h-1','gas transfer velocity based on Borges', output=output_instantaneous)
+   call self%register_diagnostic_variable(self%id_k_borges,'k_borges','m d-1','gas transfer velocity based on Borges', output=output_instantaneous)
    call self%register_diagnostic_variable(self%id_Sc,'Sc','','Schmidt number', output=output_instantaneous)
    call self%register_diagnostic_variable(self%id_n2o_sat,'n2o_sat','%','saturation of N2O', output=output_instantaneous)
    call self%register_diagnostic_variable(self%id_n2o_from_denit,'n2o_from_denit','umol m-3 d-1','N2O production from denitation ', output=output_instantaneous)
@@ -300,8 +300,8 @@
 
          Sc = 2141.2_rk + (-152.56_rk) * temp + 5.8963_rk * temp ** 2.0_rk + (-0.12411_rk) * temp ** 3.0_rk + 0.0010655_rk * temp ** 4.0_rk ! based on Wanninkhof (2014)
          
-         k_wanninkhof = 0.39_rk * wind_speed**2 * (Sc / 660.0_rk)**(-0.5) ! based on Wanninkhof
-         k_borges = 0.24_rk * (4.045_rk+2.58_rk*wind_speed) * (Sc/600._rk)**(-0.5) ! based on Borges (as used by Brase et al., 2017)
+         k_wanninkhof = 0.24 * 0.39_rk * wind_speed**2 * (Sc / 660.0_rk)**(-0.5) ! based on Wanninkhof (1992), converted from cm h-1 to m d-1 with 0.24
+         k_borges = 0.24 * (4.045_rk+2.58_rk*wind_speed) * (Sc/600._rk)**(-0.5) ! based on Borges et al. (2004) (as used by Brase et al., 2017), converted from cm h-1 to m d-1 with 0.24
          
          n2o_sea_air_flux_w = (n2o_conc_w - n2o_eq) * k_wanninkhof
          n2o_sea_air_flux_b = (n2o_conc_b - n2o_eq) * k_borges

@@ -36,7 +36,7 @@ contains
          case ('light');  allocate(type_hereon_light::model)
          case ('omexdia_p'); allocate(type_hereon_omexdia_p::model)
          case ('omexdia_bottom'); allocate(type_hereon_omexdia_bottom::model)
-         case ('omexdia_n2o_nope'); allocate(type_hereon_omexdia_for_nope::model)
+         case ('omexdia_for_nope'); allocate(type_hereon_omexdia_for_nope::model)
          case ('nope'); allocate(type_hereon_nope::model)
       end select
 

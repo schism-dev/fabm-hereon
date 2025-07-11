@@ -3,7 +3,7 @@
 !-----------------------------------------------------------------------
 !BOP
 !
-! !MODULE: hereon_omexdia_for_nope --- Fortran 2003 version of OMEXDIA+P biogeochemical model
+! !MODULE: hereon_omexdia_for_nope --- Fortran 2003 version of OMEXDIA+P biogeochemical model with adaptation to NOPE module
 !
 ! !INTERFACE:
    module hereon_omexdia_for_nope
@@ -14,10 +14,20 @@
 ! and is intended to simulate early diagenesis in the sea sediments. The major
 ! difference to the original OMEXDIA is an added phosphorus cycle.
 ! In addition, this version of the model was adjusted so that it represents a water column and can be coupled
-! to the NOPE (nitrous oxide production and emission) module. The following additions were made:
+! to the NOPE (Nitrous Oxide Production and Emission) module. The following additions were made:
 !  - nitrification rate as diagnostics
 !  - DIN (dissolved inorganic nitrogen; nitrate + ammonium) as a diagnostic
 !  - a bottom process of sediment oxygen uptake and a respective diagnostic
+!
+!
+! SPDX-FileCopyRightText: 2021-2025 Helmholtz-Zentrum hereon GmbH
+! SPDX-FileCopyRightText: 2013-2021 Helmholtz-Zentrum Geesthacht GmbH
+! SPDX-FileContributor: Carsten Lemmen <carsten.lemmen@hereon.de>
+! SPDX-FileContributor: Nina Preußler <nina.preussler@hereon.de>
+! SPDX-FileContributor: Richard Hofmeister
+! SPDX-FileContributor: Kai W. Wirtz <kai.wirtz@hereon.de>
+! SPDX-LicenseRef: Apache-2.0
+!
 !
 ! !USES:
    use fabm_types
@@ -35,6 +45,7 @@
 !
 ! !REVISION HISTORY:!
 !  Original author(s): Richard Hofmeister & Kai Wirtz
+!  Adjusted to NOPE: Nina Preußler
 !
 !
 ! !PUBLIC DERIVED TYPES:
@@ -111,7 +122,7 @@
    call self%get_parameter(self%ksO2oduox,'ksO2oduox','mmolO2 m-3','half-saturation O2 in oxidation of ODU ',default=10.0_rk)
    call self%get_parameter(self%ksO2oxic,'ksO2oxic','mmolO2 m-3','half-saturation O2 in oxic minerals ',default=3.0_rk)
    call self%get_parameter(self%ksNO3denit,'ksNO3denit','mmolNO3 m-3','half-saturation NO3 in denitrif ',default=36.0_rk)
-   call self%get_parameter(self%kinO2denit,'kinO2denit','mmmolO2 m-3','half-saturation O2 inhib denitrif ',default=93.0_rk) ! from Holzwarth diss
+   call self%get_parameter(self%kinO2denit,'kinO2denit','mmmolO2 m-3','half-saturation O2 inhib denitrif ',default=93.0_rk)
    call self%get_parameter(self%kinNO3anox,'kinNO3anox','mmolNO3 m-3','half-saturation NO3 inhib anoxic min ',default=1.0_rk)
    call self%get_parameter(self%kinO2anox,'kinO2anox','mmolO2 m-3','half-saturation O2 inhib anoxic min ',default=1.0_rk)
    call self%get_parameter(self%PAds,'PAds','-','Adsorption coefficient phosphate ',default=4.0_rk)
@@ -176,6 +187,7 @@
 !
 ! !REVISION HISTORY:
 !  Original author(s): Richard Hofmeister & Kai Wirtz
+!  Updated to FABM 1 + adjusted to enable coupling with NOPE: Nina Preußler
 !
 ! !LOCAL VARIABLES:
    real(rk) :: fdet,sdet,oxy,odu,no3,nh3,pdet,po4
@@ -243,11 +255,11 @@
    OduDepo    = AnoxicMin*pDepo
 
 #define _CONV_UNIT_ /secs_pr_day
-! reaction rates
+   ! reaction rates
    _ADD_SOURCE_(self%id_fdet, (- f_T * CprodF) _CONV_UNIT_)
    _ADD_SOURCE_(self%id_sdet, (- f_T * CprodS) _CONV_UNIT_)
    _ADD_SOURCE_(self%id_oxy , (-OxicMin - 2.0_rk* Nitri - OduOx) _CONV_UNIT_) !RH 1.0->150/106*OxicMin (if [oxy]=mmolO2/m**3)
-   _ADD_SOURCE_(self%id_no3 , (-0.8_rk*Denitrific + Nitri) _CONV_UNIT_)     !RH 0.8-> ~104/106? whut?
+   _ADD_SOURCE_(self%id_no3 , (-0.8_rk*Denitrific + Nitri) _CONV_UNIT_)     !RH 0.8-> ~104/106? 
    _ADD_SOURCE_(self%id_nh3 , (f_T * Nprod - Nitri) / (1.0_rk + self%NH3Ads) _CONV_UNIT_)
    _ADD_SOURCE_(self%id_odu , (AnoxicMin - OduOx - OduDepo) _CONV_UNIT_)
    _ADD_SOURCE_(self%id_po4 , (f_T * Pprod - radsP) _CONV_UNIT_)
@@ -287,7 +299,7 @@
 
          _ADD_BOTTOM_FLUX_(self%id_oxy, -oxy_consumption_sediments _CONV_UNIT_)
 
-         _SET_BOTTOM_DIAGNOSTIC_(self%id_oxy_uptake_sediments , oxy_consumption_sediments)
+         _SET_BOTTOM_DIAGNOSTIC_(self%id_oxy_uptake_sediments, oxy_consumption_sediments)
          
 
       _BOTTOM_LOOP_END_

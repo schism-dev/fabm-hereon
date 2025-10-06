@@ -26,9 +26,10 @@
 ! This is achieved in the "coupling" section of NOPE in the fabm.yaml file.
 !
 !
-! SPDX-FileCopyRightText: 2021-2024 Helmholtz-Zentrum hereon GmbH
+! SPDX-FileCopyRightText: 2021-2025 Helmholtz-Zentrum hereon GmbH
 ! SPDX-FileCopyRightText: 2013-2021 Helmholtz-Zentrum Geesthacht GmbH
 ! SPDX-FileContributor: Nina Preußler <nina.preussler@hereon.de>
+! SPDX-FileContributor: Carsten Lemmen <carsten.lemmen@hereon.de>
 ! SPDX-LicenseRef: Apache-2.0
 ! 
 !
@@ -68,6 +69,7 @@
 !     Model parameters
       real(rk) :: n2o_emission_factor_nitri, n2o_emission_factor_nitri_type, n2o_emission_factor_denit
       real(rk) :: wind_data_type, wind_mean_annual, wind_mean_spring, wind_mean_summer, wind_mean_fall, wind_mean_winter
+      real(rk) :: nitrification_scale_factor, denitrification_scale_factor
 
       contains
 
@@ -104,8 +106,7 @@
 ! !LOCAL VARIABLES:
       real(rk) :: n2o_emission_factor_nitri, n2o_emission_factor_nitri_type, n2o_emission_factor_denit
       real(rk) :: wind_data_type, wind_mean_annual, wind_mean_spring, wind_mean_summer, wind_mean_fall, wind_mean_winter
-
-!EOP
+ !EOP
 !-----------------------------------------------------------------------
 !BOC
 
@@ -121,7 +122,9 @@
    call self%get_parameter(self%wind_mean_summer,'wind_mean_summer','m s-1','mean of wind speed in summer',default=3.75_rk)
    call self%get_parameter(self%wind_mean_fall,'wind_mean_fall','m s-1','mean of wind speed in fall',default=3.93_rk)
    call self%get_parameter(self%wind_mean_winter,'wind_mean_winter','m s-1','mean of wind speed in winter',default=5._rk)
-
+   call self%get_parameter(self%nitrification_scale_factor,'nitrification_scale_factor','','scale factor for nitrification',default=1._rk)
+   call self%get_parameter(self%denitrification_scale_factor,'nitrification_scale_factor','','scale factor for nitrification',default=1._rk)
+   
    ! Register state variables
    call self%register_state_variable(self%id_n2o_w,  'n2o_w',  'umolN2 m-3', 'N2O for sea-to-air flux based on Wanninkhof (1992)',10._rk,minimum=0.0_rk)
    call self%register_state_variable(self%id_n2o_b,  'n2o_b',  'umolN2 m-3', 'N2O for sea-to-air flux based on Borges et al. (2004)',10._rk,minimum=0.0_rk)
@@ -142,9 +145,9 @@
    call self%register_diagnostic_variable(self%id_n2o_yield_nitri,'n2o_yield_nitri','','N2O yield from nitrification', output=output_instantaneous)
 
    ! Register dependencies
-   ! from biogeochemical model
-   call self%register_dependency(self%id_denit, 'denit', 'mmolN m-3 d-1', 'denitrification rate')
-   call self%register_dependency(self%id_nitri, 'nitri', 'mmolN m-3 d-1', 'nitrification rate')
+   ! from biogeochemical model 
+   call self%register_dependency(self%id_denit, 'denit', 'mmolN m**-3 d**-1', 'denitrification rate')
+   call self%register_dependency(self%id_nitri, 'nitri', 'mmolN m**-3 d**-1', 'nitrification rate')
    call self%register_dependency(self%id_oxy, 'oxy', 'mmolO2 m-3 d-1', 'dissolved oxygen concentration')
    ! from hydrodynamic host (e.g., GOTM)
    call self%register_dependency(self%id_temp,standard_variables%temperature)
@@ -194,7 +197,9 @@
 
    ! Retrieve current (local) state variable values.
    _GET_(self%id_denit,denit)
+   denit = denit *  self%denitrification_scale_factor
    _GET_(self%id_nitri,nitri)
+   nitri = nitri * self%nitrification_scale_factor
    _GET_(self%id_oxy,oxy)
 
 

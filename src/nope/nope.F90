@@ -123,7 +123,7 @@
    call self%get_parameter(self%wind_mean_fall,'wind_mean_fall','m s-1','mean of wind speed in fall',default=3.93_rk)
    call self%get_parameter(self%wind_mean_winter,'wind_mean_winter','m s-1','mean of wind speed in winter',default=5._rk)
    call self%get_parameter(self%nitrification_scale_factor,'nitrification_scale_factor','','scale factor for nitrification',default=1._rk)
-   call self%get_parameter(self%denitrification_scale_factor,'nitrification_scale_factor','','scale factor for nitrification',default=1._rk)
+   call self%get_parameter(self%denitrification_scale_factor,'denitrification_scale_factor','','scale factor for denitrification',default=1._rk)
    
    ! Register state variables
    call self%register_state_variable(self%id_n2o_w,  'n2o_w',  'umolN2 m-3', 'N2O for sea-to-air flux based on Wanninkhof (1992)',10._rk,minimum=0.0_rk)

@@ -1,7 +1,7 @@
-!! SPDX-FileCopyrightText: 2022-2025 Helmholtz-Zentrum hereon GmbH
-!! SPDX-License-Identifier: CC0-1.0
-!! SPDX-FileContributor Carsten Lemmen <carsten.lemmen@hereon.de>
-!! SPDX-FileContributor Nina Preußler <nina.preussler@stud.leuphana.de>
+! SPDX-FileCopyrightText: 2022-2026 Helmholtz-Zentrum hereon GmbH
+! SPDX-License-Identifier: CC0-1.0
+! SPDX-FileContributor Carsten Lemmen <carsten.lemmen@hereon.de>
+! SPDX-FileContributor Nina Preußler <nina.preussler@stud.leuphana.de>
 
 module hereon_model_library
 

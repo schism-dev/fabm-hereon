@@ -1,3 +1,6 @@
+! SPDX-FileCopyrightText: 2025-2026 Helmholtz-Zentrum hereon GmbH
+! SPDX-License-Identifier: Apache-2.0
+
 #include "fabm_driver.h"
 
 ! This is a FABM implementation of the two-band light model used in

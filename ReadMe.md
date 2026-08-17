@@ -2,11 +2,14 @@
 
 This is a collection of [FABM](https://fabm.net) models developed at Helmholtz-Zentrum hereon GmbH by the ecosystem modeling group.  It currently includes
 
-1. a port of the GOTM light model with horizontal parameter variation
-2. the OmexDia model with added phosphorous
-3. the OmexDia model as a bottom representation (in development)
-4. a module for nitrous oxide production and emission (NOPE)
-5. the OmexDia model adjusted to enable coupling with NOPE
+1. A `light` model, based on the GOTM `light` implementation but with more exact layer averaging
+2. The OMExDia model in several variations. OMexDia is a sediment biogeochmemical model
+  a) OMExDia with phop orus 
+3. a port of the GOTM light model with horizontal parameter variation
+4. the OmexDia model with added phosphorous
+5. the OmexDia model as a bottom representation (in development)
+6. a module for nitrous oxide production and emission (NOPE)
+7. the OmexDia model adjusted to enable coupling with NOPE
 
 ## How to build
 

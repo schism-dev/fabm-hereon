@@ -1,3 +1,6 @@
+! SPDX-FileCopyrightText: 2013-2026 Helmholtz-Zentrum hereon GmbH
+! SPDX-License-Identifier: Apache-2.0
+
 #include "fabm_driver.h"
 
 !-----------------------------------------------------------------------

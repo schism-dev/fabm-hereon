@@ -1,6 +1,6 @@
-# SPDX-FileCopyrightText: 2024 Helmholtz-Zentrum hereon GmbH (Hereon)
+# SPDX-FileCopyrightText: 2024-2026 Helmholtz-Zentrum hereon GmbH
 # SPDX-FileContributor: Carsten Lemmen <carsten.lemmen@hereon.de>
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: CC0-1.0
 
 import numpy as np
 import scipy.integrate

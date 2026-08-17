@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2022-2026 Helmholtz-Zentrum hereon GmbH
+SPDX-License-Identifier: CC0-1.0
+-->
+
+
 # FABM-hereon
 
 This is a collection of [FABM](https://fabm.net) models developed at Helmholtz-Zentrum hereon GmbH by the ecosystem modeling group.  It currently includes

@@ -1,0 +1,82 @@
+{
+  "upload_type": "software",
+  "license": "Apache-2.0",
+  "title": "The Hereon FABM models OMExDia, NOPE, and light",
+  "access_right": "open",
+  "copyright": "2022-2026 Helmholtz-Zentrum hereon GmbH",
+  "keywords": [
+    "FABM",
+    "Ecosystem Model",
+    "Aquatic Model",
+    "Biogeochemistry",
+    "NOPE",
+    "N2O",
+    "OMexDia",
+    "GOTM"
+    "GETM",
+    "SCHISM"
+  ],
+  "creators": [
+      {
+        "affiliations": [
+          {
+            "name": "Helmholtz-Zentrum Hereon"
+          }, 
+          {
+            "name": "Leuphana University Lüneburg"
+          }
+        ],
+        "person_or_org": {
+          "family_name": "Lemmen",
+          "name": "Carsten Lemmen",
+          "type": "personal"
+          "orcid": "0000-0003-3483-6036"
+        },
+        "person_or_org": {
+          "family_name": "Hofmeister",
+          "name": "Richard Hofmeister",
+        },
+        "person_or_org": {
+          "family_name": "Wirtz",
+          "name": "Kai W. Wirtz",
+        },
+        "person_or_org": {
+          "family_name": "Saadaoui",
+          "name": "Youssef Saadaoui",
+        },
+        "person_or_org": {
+          "family_name": "Nina Preu\u00dfler",
+          "name": "Nina Preu\u00dfler",
+          "type": "personal"
+        }
+      }
+  ],
+  "contributors": [
+      {
+        "affiliations": [
+          {
+            "name": "Bolding & Bruggeman ApS"
+          }
+        ],
+        "person_or_org": {
+          "family_name": "Bruggeman",
+          "given_name": "Jorn",
+          "identifiers": [
+            {
+              "identifier": "0000-0003-2493-2323",
+              "scheme": "orcid"
+            }
+          ],
+          "name": "Bruggeman, Jorn",
+          "type": "personal"
+        },
+        "role": {
+          "id": "rightsholder",
+          "title": {
+            "de": "RechteinhaberIn",
+            "en": "Rights holder"
+          }
+        }
+      }
+  ],
+}

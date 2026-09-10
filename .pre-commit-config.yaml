@@ -1,0 +1,18 @@
+# SPDX-FileCopyrightText: 2022-2026 Helmholtz-Zentrum hereon GmbH
+# SPDX-License-Identifier: CC0-1.0
+
+repos:
+  - repo: https://github.com/fsfe/reuse-tool
+    rev: v6.2.0
+    hooks:
+      - id: reuse
+
+  - repo: https://github.com/python-jsonschema/check-jsonschema
+    rev: 0.38.0
+    hooks:
+      - id: check-jsonschema
+        name: validate .zenodo.json against Zenodo metadata schema
+        files: ^\.zenodo\.json$
+        args:
+          - "--schemafile"
+          - "https://raw.githubusercontent.com/zenodraft/metadata-schema-zenodo/refs/heads/main/schema.json"

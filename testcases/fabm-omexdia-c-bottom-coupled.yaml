@@ -12,7 +12,7 @@
 #
 # omexdia_c_bottom no longer declares any interior/"3D" state
 # dependency at all (see its own header): oxy_c0/fdet_c0/sdet_c0/ch4_c0/
-# no3_c0/so4_c0/temp_c0 are all plain read-only concentration
+# pdet_c0/no3_c0/so4_c0/temp_c0 are all plain read-only concentration
 # dependencies, coupled below straight to omexdia_c's real state (or,
 # for so4/temp, to a constant -- omexdia_c has no so4/temp variable of
 # its own to couple to; so4 is deliberately independent, see caveat 4
@@ -66,6 +66,8 @@ instances:
       fdet_c0: omexdia_c/fdet
       sdet_c0: omexdia_c/sdet
       ch4_c0: omexdia_c/ch4
+      pdet_c0: omexdia_c/pdet
+      po4_c0: omexdia_c/po4
       no3_c0: omexdia_c/no3
       so4_c0: so4_forcing/data
       temp_c0: temp_forcing/data

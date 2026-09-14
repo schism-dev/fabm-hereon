@@ -55,16 +55,27 @@
 !              zone" simplification that justified treating nh3/ODU with
 !              a quasi-steady shortcut, so it is not given a flux/budget
 !              of its own here).
-!   id_so4  -- interfacial sulfate. NOTE: earlier versions of this model
-!              derived so4 from salinity via hereon_omexdia_c's own
-!              sulfate_from_salinity() proxy. Real station data (Elbe
-!              estuary: Geesthacht, salinity=0, observed so4=800 mmol/m3)
-!              showed this proxy fails badly in freshwater reaches with
-!              non-marine (geological/mining-influenced) sulfate sources.
-!              so4 is therefore a REQUIRED, INDEPENDENT dependency here --
-!              couple it to real observations/forcing, or to a separate
-!              diagnostic module implementing the salinity proxy, as
-!              appropriate for the deployment site.
+!   id_so4  -- interfacial sulfate, OPTIONAL (required=.false.). Prefer
+!              coupling this to real observations/forcing wherever
+!              possible -- real station data (Elbe estuary: Geesthacht,
+!              salinity=0, observed so4=800 mmol/m3) showed the
+!              salinity-derived proxy below fails badly in freshwater
+!              reaches with non-marine (geological/mining-influenced)
+!              sulfate sources. so4 was made a REQUIRED, INDEPENDENT
+!              dependency for exactly this reason in an earlier version
+!              of this module.
+!   id_salinity -- interfacial salinity, OPTIONAL (required=.false.),
+!              used ONLY as a fallback when so4_c0 is not coupled (see
+!              do_bottom: so4_c0 if available, else derived from
+!              salinity_c0 via the same sulfate_from_salinity() proxy
+!              hereon_omexdia_c uses internally -- duplicated locally,
+!              not `use`d from that module, to keep this one
+!              self-contained; carries the SAME freshwater-failure
+!              caveat as above). If NEITHER is coupled, so4 falls back
+!              to the fixed parameter so4_default (full-marine by
+!              default) -- see initialize. This is deliberately a
+!              last-resort fallback chain, not an endorsement of the
+!              proxy: supply real so4_c0 whenever it is available.
 !   id_temp -- bottom water temperature, used only for the methanogenesis
 !              Q10 factor. NOTE: NOT standard_variables%temperature --
 !              this FABM tree has no bottom-domain temperature standard
@@ -154,6 +165,53 @@
 ! transport. Revisit if the host model exposes its own bottom-cell
 ! thickness as a usable dependency.
 !
+! SEDIMENT INVENTORY DIAGNOSTICS (standing stock, mmol m-2, NOT a flux):
+! total_oxygen_in_soil/fdet_inventory/sdet_inventory integrate the
+! model's own assumed exponential depth profiles
+! (X(z) = X_surface*exp(-z/depth_trait), the same shape marg_fdet/
+! marg_sdet/benefit are already derived from -- no new assumption
+! introduced) over a FIXED 0-to-Lmax box:
+!   inventory = X_surface * depth_trait * (1 - exp(-Lmax/depth_trait))
+! Lmax (not e.g. a multiple of the trait itself) is used deliberately as
+! the upper bound so the accounting box is a fixed reference volume, not
+! one that silently grows/shrinks with the trait it is trying to budget.
+! total_carbon_in_soil/total_nitrogen_in_soil sum fdet+sdet (N via the
+! existing NCrFdet/NCrSdet ratios) for a combined particulate organic
+! C/N budget.
+!
+! total_phosphorus_in_soil: unlike N, hereon_omexdia_c does NOT give P a
+! fixed ratio to C -- pdet and po4 are their own pair of prognostic
+! pools there, exchanging via sorption/desorption:
+!   radsP = PAds*rSlow*(po4*max(odu,PAdsODU))    [adsorption, po4->pdet]
+!   Pprod = rFast*(1-Oxicminlim)*pdet            [release,    pdet->po4]
+! (P sorbs onto particulates under oxic conditions and releases back to
+! porewater as conditions turn anoxic -- the Fe-oxide "P shuttle"). This
+! module does NOT reproduce that sorption/desorption KINETICS -- doing
+! so would need a depth profile for odu (the redox proxy controlling
+! the balance), which nothing in this module posits (odu is only ever a
+! quasi-steady RATE here, odu_production, never a standing
+! concentration). Instead, total_phosphorus_in_soil sums two
+! independently-read, non-reacting forcing pools:
+!   pdet_c0 (mmol P m-3) -- particulate, assumed to share fdet's OWN
+!     spatial scale (fdet_depth), justified because pdet's release rate
+!     in omexdia_c uses the same rFast family as fdet's, not sdet's.
+!   po4_c0 (mmol P m-3) -- dissolved, assumed to share oxy's spatial
+!     scale (oxy_depth) as a dissolved porewater species, the same way
+!     O2 does -- an UNVALIDATED assumption (po4 release actually peaks
+!     BELOW the oxic zone, not decaying alongside it like O2 does; no
+!     better alternative is available without inventing a real po4
+!     depth-profile submodel, which is out of scope here).
+! Both pools are read-only forcing, exactly like oxy_c0/fdet_c0/sdet_c0
+! -- neither is derived from the other via the real sorption equations
+! above, unlike in omexdia_c itself.
+!
+! NOT provided for CH4/ODU/NO3/SO4/sulfur: this model never posits a
+! depth profile for any of them (CH4 is a real pelagic concentration
+! with no sediment shape of its own here; ODU/NO3/SO4 are diagnostic-
+! only/forcing; organic sulfur is not tracked at all) -- an inventory
+! for those would require inventing a profile shape (or, for sulfur, an
+! S:C ratio) not otherwise used anywhere else in this module.
+!
 ! !USES:
    use fabm_types
 
@@ -189,10 +247,19 @@
       type (type_dependency_id)                      :: id_fdet
       type (type_dependency_id)                      :: id_sdet
       type (type_dependency_id)                      :: id_ch4
+!     Interfacial P concentrations, read-only, particulate + dissolved
+!     (see header: used only for total_phosphorus_in_soil, summed as
+!     two independently-read forcing pools -- no sorption/desorption
+!     coupling between them is reproduced).
+      type (type_dependency_id)                      :: id_pdet
+      type (type_dependency_id)                      :: id_po4
 
 !     Read-only forcing dependencies (no flux returned).
       type (type_dependency_id)                      :: id_no3
+!     so4 OPTIONAL (see header); salinity OPTIONAL, used only as a
+!     fallback to derive so4 when so4_c0 itself is not coupled.
       type (type_dependency_id)                      :: id_so4
+      type (type_dependency_id)                      :: id_salinity
       type (type_dependency_id)                      :: id_temp
 !     Diagnostics (horizontal-only, matching the trait states' domain).
       type (type_horizontal_diagnostic_variable_id) :: id_dLdt
@@ -205,6 +272,11 @@
 !     separate external_bottom_flux instance in YAML, see header.
       type (type_horizontal_diagnostic_variable_id) :: id_oxy_flux, id_fdet_flux
       type (type_horizontal_diagnostic_variable_id) :: id_sdet_flux, id_ch4_flux
+!     Sediment inventory diagnostics (standing stock, mmol m-2, 0-Lmax
+!     box; NOT a flux -- see header).
+      type (type_horizontal_diagnostic_variable_id) :: id_totO2_soil
+      type (type_horizontal_diagnostic_variable_id) :: id_fdet_inventory, id_sdet_inventory
+      type (type_horizontal_diagnostic_variable_id) :: id_totC_soil, id_totN_soil, id_totP_soil
 
 !     Model parameters
       real(rk) :: rate_L, alpha, rFast, rSlow, NCrFdet, NCrSdet
@@ -215,6 +287,7 @@
       real(rk) :: kinNO3anox, kinO2anox, kinSO4, relaxO2
       real(rk) :: q10_meth, Tref
       real(rk) :: nh3_amb, odu_amb
+      real(rk) :: so4_default
       real(rk) :: rmaxO2, ksCH4, ksAOM, H_REF
 
       contains
@@ -309,6 +382,10 @@
    call self%get_parameter(self%odu_amb,'odu_amb','mmol m-3', &
         'ambient ODU concentration used in OxicMin denominator (fixed, not dynamic)', &
         default=100.0_rk)
+   call self%get_parameter(self%so4_default,'so4_default','mmol m-3', &
+        'last-resort so4 fallback used ONLY if neither so4_c0 nor salinity_c0 is coupled '// &
+        '(see header) -- full-marine (S=35) by default; NOT used at all if either dependency '// &
+        'is actually supplied', default=28000.0_rk)
 
    ! --- CH4 parameters ---
    call self%get_parameter(self%rmaxO2,'rmaxO2','d-1', &
@@ -360,6 +437,30 @@
         '1 if oxy_depth is pinned at Lmax (no interior equilibrium for current '// &
         'forcing -- see header caveat), 0 otherwise', output=output_instantaneous, source=source_do_bottom)
 
+   ! --- sediment inventory diagnostics (standing stock, 0-Lmax box; see
+   ! header -- NOT provided for CH4/ODU/NO3/SO4/sulfur, no depth profile
+   ! or ratio posited for any of those) ---
+   call self%register_diagnostic_variable(self%id_totO2_soil,'total_oxygen_in_soil','mmol O2 m-2', &
+        'O2 standing stock in the 0-Lmax sediment box, assuming O2(z)=oxy_c0*exp(-z/oxy_depth)', &
+        output=output_instantaneous, source=source_do_bottom)
+   call self%register_diagnostic_variable(self%id_fdet_inventory,'fdet_inventory','mmol C m-2', &
+        'fdet standing stock in the 0-Lmax sediment box, assuming fdet(z)=fdet_c0*exp(-z/fdet_depth)', &
+        output=output_instantaneous, source=source_do_bottom)
+   call self%register_diagnostic_variable(self%id_sdet_inventory,'sdet_inventory','mmol C m-2', &
+        'sdet standing stock in the 0-Lmax sediment box, assuming sdet(z)=sdet_c0*exp(-z/sdet_depth)', &
+        output=output_instantaneous, source=source_do_bottom)
+   call self%register_diagnostic_variable(self%id_totC_soil,'total_carbon_in_soil','mmol C m-2', &
+        'total particulate organic carbon standing stock (fdet+sdet) in the 0-Lmax box', &
+        output=output_instantaneous, source=source_do_bottom)
+   call self%register_diagnostic_variable(self%id_totN_soil,'total_nitrogen_in_soil','mmol N m-2', &
+        'total particulate organic nitrogen standing stock (fdet*NCrFdet+sdet*NCrSdet) '// &
+        'in the 0-Lmax box', output=output_instantaneous, source=source_do_bottom)
+   call self%register_diagnostic_variable(self%id_totP_soil,'total_phosphorus_in_soil','mmol P m-2', &
+        'particulate (pdet_c0, fdet_depth scale) + dissolved (po4_c0, oxy_depth scale) P '// &
+        'standing stock in the 0-Lmax box -- two independently-read forcing pools, NOT '// &
+        'reproducing omexdia_c own sorption/desorption coupling between them (see header note)', &
+        output=output_instantaneous, source=source_do_bottom)
+
    ! --- pelagic concentrations, read-only (see header: plain named
    ! dependencies, not state dependencies -- this module never touches
    ! any interior/"3D" state variable directly). ---
@@ -371,6 +472,13 @@
         'slow detritus concentration at the sediment-water interface')
    call self%register_dependency(self%id_ch4,'ch4_c0','mmol C m-3', &
         'methane concentration at the sediment-water interface')
+   ! Used only for total_phosphorus_in_soil (see header) -- no flux
+   ! returned, unlike oxy/fdet/sdet/ch4 above. Two independent pools,
+   ! NOT coupled via sorption/desorption the way omexdia_c couples them.
+   call self%register_dependency(self%id_pdet,'pdet_c0','mmol P m-3', &
+        'particulate detritus-P concentration at the sediment-water interface')
+   call self%register_dependency(self%id_po4,'po4_c0','mmol P m-3', &
+        'dissolved phosphate concentration at the sediment-water interface')
 
    ! --- mass-balance flux OUTPUTS, as diagnostics (mmol m-2 s-1, positive
    ! into the pelagic pool) -- consumed by a separate external_bottom_flux
@@ -389,15 +497,19 @@
         output=output_instantaneous, source=source_do_bottom)
 
    ! --- read-only forcing dependencies ---
-   ! so4 is NOT derived from salinity here (see header rationale) -- it
-   ! must be coupled explicitly, either to real observations/forcing or
-   ! to a separate module implementing whatever salinity proxy is
-   ! appropriate for the deployment site.
    call self%register_dependency(self%id_no3,'no3_c0','mmol N m-3', &
         'nitrate concentration at the sediment-water interface (diagnostic use only)')
+   ! OPTIONAL -- prefer coupling this explicitly to real observations/
+   ! forcing wherever possible (see header caveat on the salinity-proxy
+   ! fallback below).
    call self%register_dependency(self%id_so4,'so4_c0','mmol m-3', &
-        'sulfate concentration at the sediment-water interface (couple explicitly -- '// &
-        'do NOT assume a fixed salinity-sulfate relationship, see header note)')
+        'sulfate concentration at the sediment-water interface (prefer coupling explicitly -- '// &
+        'see header: falls back to a salinity proxy, then a fixed default, if not coupled)', &
+        required=.false.)
+   ! OPTIONAL -- fallback source for so4 only, see header and do_bottom.
+   call self%register_dependency(self%id_salinity,'salinity_c0','PSU', &
+        'salinity at the sediment-water interface (fallback so4 proxy only, see header caveat '// &
+        '-- unused if so4_c0 is coupled)', required=.false.)
    ! NOT standard_variables%temperature -- no bottom-domain temperature
    ! standard variable exists in this FABM tree, and the interior one
    ! would reintroduce exactly the "3D" coupling this module avoids
@@ -425,6 +537,8 @@
 !
 ! !LOCAL VARIABLES:
    real(rk) :: oxy_surface, fdet_surface, sdet_surface, ch4_surface, no3_surface, so4, temp_celsius
+   real(rk) :: salinity
+   real(rk) :: pdet_surface, po4_surface
    real(rk) :: L, LCf, LCs, Leff, LCfeff, LCseff, ch4eff
    real(rk) :: temp_kelvin, E_a_meth, f_temp_meth
    real(rk) :: Oxicminlim, Denitrilim, anoxic_space, f_so4, f_meth
@@ -439,6 +553,8 @@
    real(rk) :: ch4_aerobic_o2, ch4_consumption_areal, total_o2_demand
    real(rk) :: nitri_n_production, denitri_n_consumption, net_no3
    real(rk) :: at_ceiling_flag
+   real(rk) :: oxy_inventory, fdet_inventory, sdet_inventory, totC_inventory, totN_inventory, totP_inventory
+   real(rk) :: pdet_inventory, po4_inventory
 
 !EOP
 !-----------------------------------------------------------------------
@@ -450,9 +566,23 @@
    _GET_(self%id_fdet,fdet_surface)
    _GET_(self%id_sdet,sdet_surface)
    _GET_(self%id_ch4,ch4_surface)
+   _GET_(self%id_pdet,pdet_surface)
+   _GET_(self%id_po4,po4_surface)
    _GET_(self%id_no3,no3_surface)
-   _GET_(self%id_so4,so4)
    _GET_(self%id_temp,temp_celsius)
+
+   ! so4 fallback chain (see header): so4_c0 if coupled, else derived
+   ! from salinity_c0 if THAT is coupled, else a fixed default. Checked
+   ! here (not at initialize) because optional-dependency availability
+   ! is only resolved after all models' coupling requests are in.
+   if (_AVAILABLE_(self%id_so4)) then
+      _GET_(self%id_so4,so4)
+   else if (_AVAILABLE_(self%id_salinity)) then
+      _GET_(self%id_salinity,salinity)
+      so4 = sulfate_from_salinity(salinity)
+   else
+      so4 = self%so4_default
+   end if
 
    ! Current trait values (bottom, horizontal-only state variables)
    _GET_HORIZONTAL_(self%id_oxy_depth,L)
@@ -565,9 +695,52 @@
    _SET_HORIZONTAL_DIAGNOSTIC_(self%id_ch4_prod, ch4_production)
    _SET_HORIZONTAL_DIAGNOSTIC_(self%id_at_ceiling, at_ceiling_flag)
 
+   ! --- sediment inventory diagnostics (standing stock, 0-Lmax box; see
+   ! header) -- same exponential profile shape marg_fdet/marg_sdet/
+   ! benefit above are already derived from, just integrated to a fixed
+   ! bound (Lmax) instead of the trait's own (moving) depth. ---
+   oxy_inventory  = oxy_surface  * Leff   * (1.0_rk - exp(-self%Lmax/Leff))
+   fdet_inventory = fdet_surface * LCfeff * (1.0_rk - exp(-self%Lmax/LCfeff))
+   sdet_inventory = sdet_surface * LCseff * (1.0_rk - exp(-self%Lmax/LCseff))
+   totC_inventory = fdet_inventory + sdet_inventory
+   totN_inventory = self%NCrFdet*fdet_inventory + self%NCrSdet*sdet_inventory
+   ! pdet assumed to share fdet's own spatial scale (fdet_depth); po4
+   ! assumed to share oxy's own spatial scale (oxy_depth), as a
+   ! dissolved porewater species -- see header note on both assumptions,
+   ! and on the sorption/desorption coupling deliberately NOT reproduced
+   ! between them.
+   pdet_inventory = pdet_surface * LCfeff * (1.0_rk - exp(-self%Lmax/LCfeff))
+   po4_inventory  = po4_surface  * Leff   * (1.0_rk - exp(-self%Lmax/Leff))
+   totP_inventory = pdet_inventory + po4_inventory
+
+   _SET_HORIZONTAL_DIAGNOSTIC_(self%id_totO2_soil,     oxy_inventory)
+   _SET_HORIZONTAL_DIAGNOSTIC_(self%id_fdet_inventory, fdet_inventory)
+   _SET_HORIZONTAL_DIAGNOSTIC_(self%id_sdet_inventory, sdet_inventory)
+   _SET_HORIZONTAL_DIAGNOSTIC_(self%id_totC_soil,      totC_inventory)
+   _SET_HORIZONTAL_DIAGNOSTIC_(self%id_totN_soil,      totN_inventory)
+   _SET_HORIZONTAL_DIAGNOSTIC_(self%id_totP_soil,      totP_inventory)
+
    _HORIZONTAL_LOOP_END_
 
    end subroutine do_bottom
 !EOC
+
+   ! Fallback so4 proxy, used ONLY when so4_c0 is not coupled (see
+   ! header caveat -- duplicated from hereon_omexdia_c's own private
+   ! function of the same name rather than `use`d, to keep this module
+   ! self-contained; carries the SAME freshwater-failure caveat: real
+   ! Elbe estuary data (Geesthacht, salinity=0) showed observed so4=800
+   ! mmol/m3, not the 0 this linear proxy predicts).
+   !
+   ! Morris, A. W., & Riley, J. P. (1966). The bromide/chlorinity and
+   ! sulphate/chlorinity ratio in sea water. Deep Sea Research and
+   ! Oceanographic Abstracts, 13(4), 699-705.
+   ! https://doi.org/10.1016/0011-7471(66)90601-2
+   elemental function sulfate_from_salinity(salinity) result(so4)
+      real(rk), intent(in) :: salinity ! [PSU] local salinity, range 0..35
+      real(rk)             :: so4      ! [mmol m-3] range 0..28000
+
+      so4 = (28000.0_rk / 35.0_rk) * max(0.0_rk, salinity)
+   end function sulfate_from_salinity
 
    end module hereon_omexdia_c_bottom

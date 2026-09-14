@@ -76,6 +76,21 @@ instances:
     parameters:
       value: 10.0           # degree_C
 
+  pdet_forcing:
+    model: interior_constant
+    parameters:
+      value: 4.0e3          # mmolP m-3 -- matches hereon/omexdia_c's own pdet
+                             # default; used only for total_phosphorus_in_soil
+                             # (read-only, no flux back -- see trait model header)
+
+  po4_forcing:
+    model: interior_constant
+    parameters:
+      value: 10.0           # mmolP m-3 -- matches hereon/omexdia_c's own po4
+                             # default; used only for total_phosphorus_in_soil
+                             # (read-only, no flux back -- see trait model header;
+                             # NOT coupled to pdet via sorption/desorption here)
+
   trait:
     model: hereon/omexdia_c_bottom
     coupling:
@@ -83,6 +98,8 @@ instances:
       fdet_c0: fdet_pool/c
       sdet_c0: sdet_pool/c
       ch4_c0: ch4_pool/c
+      pdet_c0: pdet_forcing/data
+      po4_c0: po4_forcing/data
       no3_c0: no3_forcing/data
       so4_c0: so4_forcing/data
       temp_c0: temp_forcing/data

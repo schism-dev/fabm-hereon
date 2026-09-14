@@ -115,6 +115,43 @@
 ! -- see the LC_fast/LC_slow caveat below for a concrete example of one
 ! such trap that WAS found and fixed).
 !
+! EXPONENTIAL-SATURATION KINETICS (NOT Monod/Michaelis-Menten):
+! ---------------------------------------------------------------
+! Every limitation/inhibition factor below (Oxicminlim, the O2/NO3
+! factors inside Denitrilim and anoxic_space, f_so4/f_meth, and the CH4
+! aerobic-oxidation factor) uses
+!    limitation(S) = 1 - exp(-S/Ks)      [0 at S=0, -> 1 as S->infinity]
+!    inhibition(S) =     exp(-S/Ks)      [exact complement, = 1-limitation(S)]
+! instead of the classic Monod/Michaelis-Menten S/(S+Ks) / Ks/(S+Ks) pair.
+! Same qualitative 0->1 saturating shape and the same exact-complement
+! structure, but the derivative of exp(-S/Ks) stays IN THE SAME
+! exponential family (d/dS[exp(-S/Ks)] = -(1/Ks)*exp(-S/Ks)) rather than
+! escalating in rational-function degree at every differentiation --
+! this matters here specifically because dCostdL/dLdt repeatedly
+! differentiate these terms through the fitness-gradient machinery.
+!
+! CALIBRATION NOTE: Monod hits half-max exactly at S=Ks; the exponential
+! form hits half-max at S=Ks*ln(2)~=0.693*Ks. To keep the SAME half-max
+! location (so this swap changes the functional shape but not the
+! calibrated operating point), every affected Ks parameter's default
+! below (ksO2oxic, kinO2denit, ksNO3denit, kinNO3anox, kinO2anox,
+! kinSO4, ksCH4) is the ORIGINAL Monod-calibrated default divided by
+! ln(2) -- e.g. ksO2oxic default 3.0 (Monod half-max at O2=3) becomes
+! 3.0/ln(2)~=4.328 (exponential half-max still at O2=3). If these
+! parameters are overridden in a deployment's YAML, remember they now
+! calibrate an exponential-saturation curve, not a Monod one.
+!
+! NOTE this is a DIFFERENT reformulation from the depth-INTEGRATION
+! question (see the porosity-weighting and inventory sections below):
+! composing exp(-S/Ks) through a depth profile S(z)=S0*exp(-z/L) gives a
+! Gompertz-type double-exponential in z with NO elementary closed-form
+! integral (worse than Monod-of-exponential-profile, which does
+! integrate via logs/partial fractions) -- so this swap is deliberately
+! scoped to the INTERFACE-evaluated (z=0) limitation fractions only. Any
+! future depth-resolved energy/fraction profile should prescribe a
+! direct exponential envelope in z rather than compose this substitute
+! through S(z).
+!
 ! ESCAPE-THRESHOLD CAVEAT (structural, not a bug): benefit(L)~1/L is
 ! algebraic while dCost/dL decays exponentially in L. This pairing
 ! generically produces a stable equilibrium L1 AND an unstable escape
@@ -406,19 +443,29 @@
         'maximum oxygen penetration depth (domain ceiling; dL/dt frozen '// &
         'above this -- see header caveat on the escape threshold)', default=0.5_rk)
 
-   ! --- electron-acceptor partition kinetics (match hereon_omexdia_c) ---
+   ! --- electron-acceptor partition kinetics (match hereon_omexdia_c's
+   ! ORIGINAL Monod half-max calibration -- see header: these are now
+   ! exponential-saturation curves, and each default below is the
+   ! original Monod Ks divided by ln(2) so the half-max location is
+   ! unchanged) ---
    call self%get_parameter(self%ksO2oxic,'ksO2oxic','mmolO2 m-3', &
-        'half-saturation O2 in oxic mineralization', default=3.0_rk)
+        'O2 scale in oxic mineralization (exponential-saturation, half-max at '// &
+        'O2=ksO2oxic*ln(2); original Monod default 3.0 rescaled, see header)', default=4.328_rk)
    call self%get_parameter(self%kinO2denit,'kinO2denit','mmolO2 m-3', &
-        'half-saturation O2 inhibition of denitrification', default=70.0_rk)
+        'O2 scale, inhibition of denitrification (exponential-saturation; original '// &
+        'Monod default 70.0 rescaled, see header)', default=100.987_rk)
    call self%get_parameter(self%ksNO3denit,'ksNO3denit','mmolNO3 m-3', &
-        'half-saturation NO3 in denitrification', default=1.0_rk)
+        'NO3 scale in denitrification (exponential-saturation; original Monod default '// &
+        '1.0 rescaled, see header)', default=1.443_rk)
    call self%get_parameter(self%kinNO3anox,'kinNO3anox','mmolNO3 m-3', &
-        'half-saturation NO3 inhibition of anoxic mineralization', default=1.0_rk)
+        'NO3 scale, inhibition of anoxic mineralization (exponential-saturation; '// &
+        'original Monod default 1.0 rescaled, see header)', default=1.443_rk)
    call self%get_parameter(self%kinO2anox,'kinO2anox','mmolO2 m-3', &
-        'half-saturation O2 inhibition of anoxic mineralization', default=1.0_rk)
+        'O2 scale, inhibition of anoxic mineralization (exponential-saturation; '// &
+        'original Monod default 1.0 rescaled, see header)', default=1.443_rk)
    call self%get_parameter(self%kinSO4,'kinSO4','mmol m-3', &
-        'sulfate inhibition threshold for methanogenesis', default=1000.0_rk)
+        'sulfate scale, inhibition threshold for methanogenesis (exponential-saturation; '// &
+        'original Monod default 1000.0 rescaled, see header)', default=1443.1_rk)
    call self%get_parameter(self%relaxO2,'relaxO2','-', &
         'relaxation term in OxicMin denominator', default=0.04_rk)
    call self%get_parameter(self%q10_meth,'q10_meth','-', &
@@ -452,7 +499,8 @@
    call self%get_parameter(self%rmaxO2,'rmaxO2','d-1', &
         'maximum aerobic CH4 oxidation rate', default=10.0_rk)
    call self%get_parameter(self%ksCH4,'ksCH4','mmol m-3', &
-        'half-saturation CH4 for aerobic oxidation', default=5.0_rk)
+        'CH4 scale for aerobic oxidation (exponential-saturation; original Monod '// &
+        'default 5.0 rescaled, see header)', default=7.213_rk)
    call self%get_parameter(self%ksAOM,'ksAOM','m3 mmol-1 d-1', &
         'second-order anaerobic CH4 oxidation (AOM) rate', default=0.05_rk)
    call self%get_parameter(self%H_REF,'H_REF','m', &
@@ -686,11 +734,16 @@
    E_a_meth = 0.1_rk * log(self%q10_meth) * self%Tref * (self%Tref + 10.0_rk)
    f_temp_meth = exp(-E_a_meth * (1.0_rk/temp_kelvin - 1.0_rk/self%Tref))
 
-   Oxicminlim = oxy_surface / (oxy_surface + self%ksO2oxic + self%relaxO2*(self%nh3_amb + self%odu_amb))
-   Denitrilim = (1.0_rk - oxy_surface/(oxy_surface + self%kinO2denit)) * no3_surface/(no3_surface + self%ksNO3denit)
-   anoxic_space = (1.0_rk - oxy_surface/(oxy_surface + self%kinO2anox)) * (1.0_rk - no3_surface/(no3_surface + self%kinNO3anox))
-   f_so4 = so4 / (self%kinSO4 + so4)
-   f_meth = self%kinSO4 / (self%kinSO4 + so4)
+   ! Exponential-saturation kinetics, NOT Monod -- see header. limitation
+   ! (1-exp(-S/Ks)) and inhibition (exp(-S/Ks)) are exact complements,
+   ! same as the Monod pair they replace; Ks parameters are pre-rescaled
+   ! (see initialize) so the half-max location matches the original
+   ! Monod calibration.
+   Oxicminlim = 1.0_rk - exp(-oxy_surface / (self%ksO2oxic + self%relaxO2*(self%nh3_amb + self%odu_amb)))
+   Denitrilim = exp(-oxy_surface/self%kinO2denit) * (1.0_rk - exp(-no3_surface/self%ksNO3denit))
+   anoxic_space = exp(-oxy_surface/self%kinO2anox) * exp(-no3_surface/self%kinNO3anox)
+   f_so4 = 1.0_rk - exp(-so4/self%kinSO4)
+   f_meth = exp(-so4/self%kinSO4)
    SulfateMinlim = anoxic_space * f_so4
    Methanolim = anoxic_space * f_meth * f_temp_meth
 
@@ -740,7 +793,7 @@
 
    ! --- CH4 production/consumption: real dynamic pelagic-partner coupling ---
    ch4_production = 0.5_rk * me_frac * total_C                          ! areal, mmol C m-2 d-1
-   ch4_aerobic_ox_vol = self%rmaxO2 * (ch4eff/(self%ksCH4+ch4eff)) * ox_frac  ! volumetric, mmol m-3 d-1
+   ch4_aerobic_ox_vol = self%rmaxO2 * (1.0_rk - exp(-ch4eff/self%ksCH4)) * ox_frac  ! volumetric, mmol m-3 d-1 (exponential-saturation, see header)
    ch4_aom_vol = self%ksAOM * ch4eff * so4                                     ! volumetric, mmol m-3 d-1
    ch4_aerobic_o2 = ch4_aerobic_ox_vol * self%H_REF                      ! areal, mmol O2 m-2 d-1
    ch4_consumption_areal = (ch4_aerobic_ox_vol + ch4_aom_vol) * self%H_REF  ! areal, mmol C m-2 d-1

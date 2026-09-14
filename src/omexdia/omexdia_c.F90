@@ -227,11 +227,7 @@
    _GET_(self%id_salinity,salinity)
 
    ! Sulfate linearly depends on salinity, so this is used as a proxy
-   if (salinity > 0.0_rk) then
-      so4 = (28000.0_rk / 35.0_rk) * salinity
-   else
-      so4 = 0.0_rk
-   end if
+   so4 = sulfate_from_salinity(salinity)
 
    ! Temperature and Q10 calculations
    temp_kelvin = 273.15_rk + temp_celsius
@@ -289,6 +285,16 @@
    pDepo      = 0.0_rk
    OduDepo    = SulfateMin * pDepo
 
+   ! Young Laplace (need ref) capillary threshold in sandy sediments
+   ! Pc = 2gamma cos Ttheta / r_throat 
+   ! with gamma suface tension of water 0.072 N m-1
+   ! with theta contact angle (wet sand = 0, cos theta = 1)
+   ! r_throat effective pore throat radious, can be approximated by median grain size
+   ! r_throat = 0.15 * d_50 (up to 0.2 * d_50)
+
+   ! CH4_sat = k_h(temperature, salinity) 
+   ! then later bubbles connect on a gas saturation threshold, typicall 10% of pore volume.
+
    ! Cap dissolved CH4 at saturation and strip everything above to gaseous CH4
    if (ch4 > ch4_sat) then
       local_stripping = (ch4 - ch4_sat) / _DT_
@@ -300,15 +306,14 @@
 ! reaction rates
    _ADD_SOURCE_(self%id_fdet, -f_T * CprodF _CONV_UNIT_)
    _ADD_SOURCE_(self%id_sdet, -f_T * CprodS _CONV_UNIT_)
-   _ADD_SOURCE_(self%id_oxy , (-OxicMin - 2.0_rk* Nitri - OduOx) _CONV_UNIT_) !RH 1.0->150/106*OxicMin (if [oxy]=mmolO2/m**3)
-   _ADD_SOURCE_(self%id_no3 , (-0.8_rk*Denitrific + Nitri) _CONV_UNIT_)     !RH 0.8-> ~104/106?
+   _ADD_SOURCE_(self%id_oxy , (-OxicMin - 2.0_rk* Nitri - OduOx) _CONV_UNIT_)
+   _ADD_SOURCE_(self%id_no3 , (-0.8_rk*Denitrific + Nitri) _CONV_UNIT_)     ! from 4/5 denitrification stoichiometry
    _ADD_SOURCE_(self%id_nh3 , (f_T * Nprod - Nitri) / (1.0_rk + self%NH3Ads) _CONV_UNIT_)
    _ADD_SOURCE_(self%id_odu , (AnoxicMin - OduOx - OduDepo) _CONV_UNIT_)
    _ADD_SOURCE_(self%id_po4 , (f_T * Pprod - radsP) _CONV_UNIT_)
    _ADD_SOURCE_(self%id_pdet, (radsP - f_T * Pprod) _CONV_UNIT_)
    _ADD_SOURCE_(self%id_ch4,     (g_ch4 - r_oxic_ox - r_aom - local_stripping) _CONV_UNIT_)
-   ! Gaseous methane set to zero for now
-   _ADD_SOURCE_(self%id_ch4_gas, (0,.0_rk) _CONV_UNIT_)
+   _ADD_SOURCE_(self%id_ch4_gas, (local_stripping)_CONV_UNIT_)
 
    ! Export diagnostic variables
    _SET_DIAGNOSTIC_(self%id_denit,Denitrific)
@@ -319,6 +324,25 @@
 
    end subroutine do
 !EOC
+
+  elemental function sulfate_from_salinity(salinity) result(so4)
+! !DESCRIPTION:
+!  Calculates the estuarine porewater sulfate proxy concentration assuming 
+!  strict conservative mixing of riverine freshwater and standard seawater 
+!  endmembers. The linear ratio is scaled to a standard global ocean concentration 
+!  of ~28.0 mmol/m3 (mM) at 35.0 PSU salinity.
+!
+!  Morris, A. W., & Riley, J. P. (1966). The bromide/chlorinity and sulphate/chlorinity 
+!  ratio in sea water. Deep Sea Research and Oceanographic Abstracts, 13(4), 699-705.
+!  https://doi.org/10.1016/0011-7471(66)90601-2
+
+
+      real(rk), intent(in) :: salinity ! [PSU] local salinity range 0 .. 35
+      real(rk)             :: so4      ! [mmol m-3] calculated sulfate concentration 0 .. 28000
+
+      so4 = (28000.0_rk / 35.0_rk) * max(0.0_rk, salinity)
+   end function sulfate_from_salinity
+
 
    end module hereon_omexdia_c
 

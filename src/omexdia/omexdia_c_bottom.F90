@@ -29,12 +29,25 @@
 !   id_fdet_depth = L_Cf, typical fast-detritus penetration depth.
 !   id_sdet_depth = L_Cs, typical slow-detritus penetration depth.
 !
-! FOUR PELAGIC STATE DEPENDENCIES (read + bottom flux; couple to a real
-! host model's own state variables, e.g. hereon_omexdia_c's oxy/fdet/sdet
-! and a ch4 pool):
-!   id_oxy, id_fdet, id_sdet, id_ch4
+! FOUR PELAGIC CONCENTRATIONS, read-only (id_oxy, id_fdet, id_sdet,
+! id_ch4) -- NOT state dependencies. This module never declares or
+! touches any interior/"3D" state variable itself: it only reads plain
+! named horizontal dependencies (oxy_c0/fdet_c0/sdet_c0/ch4_c0, same
+! convention as no3_c0/so4_c0/temp_c0 below), and its mass-balance
+! consumption/production of each is exposed as a horizontal DIAGNOSTIC
+! (oxy_flux/fdet_flux/sdet_flux/ch4_flux, mmol m-2 s-1, positive into
+! the pelagic pool). Applying that diagnostic as an actual flux onto a
+! real pelagic state variable is delegated to FABM's own builtin
+! external_bottom_flux utility model, wired up per deployment in YAML
+! (one external_bottom_flux instance per exchanged quantity, coupling
+! its 'target' to the real state variable and its 'flux' to this
+! module's diagnostic) -- see fabm-omexdia-c-bottom-coupled.yaml. This
+! keeps the module itself host-agnostic: it does not need to know at
+! compile time what (if anything) actually holds these pools.
 !
-! THREE READ-ONLY DEPENDENCIES (forcing only, no flux returned):
+! FOUR READ-ONLY FORCING DEPENDENCIES (no flux returned by this module
+! for any of these -- all plain named horizontal dependencies, no
+! standard_variable, for the same host-agnostic reason as above):
 !   id_no3  -- interfacial nitrate (used only to compute the partition
 !              fractions below; NO3 stays diagnostic, not prognostic --
 !              see rationale in the accompanying conversation: NO3's own
@@ -52,8 +65,17 @@
 !              couple it to real observations/forcing, or to a separate
 !              diagnostic module implementing the salinity proxy, as
 !              appropriate for the deployment site.
-!   id_temp -- bottom water temperature (standard_variable), used only
-!              for the methanogenesis Q10 factor.
+!   id_temp -- bottom water temperature, used only for the methanogenesis
+!              Q10 factor. NOTE: NOT standard_variables%temperature --
+!              this FABM tree has no bottom-domain temperature standard
+!              variable (only bottom_depth/bottom_roughness_length/
+!              bottom_stress/bottom_depth_below_geoid exist as bottom
+!              standard variables), and the interior temperature standard
+!              variable would pull in exactly the "3D" coupling this
+!              module otherwise avoids -- so temp_c0 is a plain named
+!              dependency like no3_c0/so4_c0, supplied however the
+!              deployment wants (a real near-bed extraction, a constant,
+!              anything).
 !
 ! FITNESS-GRADIENT ODE FOR L (oxygen depth)
 ! -------------------------------------------
@@ -141,7 +163,7 @@
    public type_hereon_omexdia_c_bottom
 !
    real(rk), parameter :: secs_pr_day = 86400.0_rk
-   real(rk), parameter :: euler_e     = 2.718281828459045_rk
+   real(rk), parameter :: euler     = 2.718281828459045_rk
 !
 ! !REVISION HISTORY:
 !  Original author(s): Carsten Lemmen (trait-based reformulation, building
@@ -161,13 +183,12 @@
       type (type_bottom_state_variable_id)          :: id_fdet_depth
       type (type_bottom_state_variable_id)          :: id_sdet_depth
 
-!     Pelagic STATE dependencies (read+write): resolve to the bottom-most
-!     water-column cell when read from do_bottom; this model also
-!     returns bottom fluxes to them.
-      type (type_state_variable_id)                  :: id_oxy
-      type (type_state_variable_id)                  :: id_fdet
-      type (type_state_variable_id)                  :: id_sdet
-      type (type_state_variable_id)                  :: id_ch4
+!     Pelagic concentrations, read-only (plain named dependencies -- see
+!     header; NOT state dependencies, no flux returned via these ids).
+      type (type_dependency_id)                      :: id_oxy
+      type (type_dependency_id)                      :: id_fdet
+      type (type_dependency_id)                      :: id_sdet
+      type (type_dependency_id)                      :: id_ch4
 
 !     Read-only forcing dependencies (no flux returned).
       type (type_dependency_id)                      :: id_no3
@@ -179,6 +200,11 @@
       type (type_horizontal_diagnostic_variable_id) :: id_su_frac, id_me_frac
       type (type_horizontal_diagnostic_variable_id) :: id_net_no3, id_odu_prod
       type (type_horizontal_diagnostic_variable_id) :: id_ch4_prod, id_at_ceiling
+!     Mass-balance flux OUTPUTS as diagnostics (mmol m-2 s-1, positive
+!     into the pelagic pool) -- applied to a real state variable by a
+!     separate external_bottom_flux instance in YAML, see header.
+      type (type_horizontal_diagnostic_variable_id) :: id_oxy_flux, id_fdet_flux
+      type (type_horizontal_diagnostic_variable_id) :: id_sdet_flux, id_ch4_flux
 
 !     Model parameters
       real(rk) :: rate_L, alpha, rFast, rSlow, NCrFdet, NCrSdet
@@ -334,20 +360,33 @@
         '1 if oxy_depth is pinned at Lmax (no interior equilibrium for current '// &
         'forcing -- see header caveat), 0 otherwise', output=output_instantaneous, source=source_do_bottom)
 
-   ! --- pelagic state dependencies (read + bottom flux) ---
-   ! NOTE: no molar-concentration oxygen standard_variable exists in this
-   ! FABM tree (only fractional_saturation_of_oxygen does), and none of
-   ! the sibling omexdia pelagic models tag their own 'oxy' with a
-   ! standard_variable either -- so couple explicitly via this plain name,
-   ! same convention as fdet_c0/sdet_c0/ch4_c0 below.
-   call self%register_state_dependency(self%id_oxy,'oxy_c0','mmol O2 m-3', &
+   ! --- pelagic concentrations, read-only (see header: plain named
+   ! dependencies, not state dependencies -- this module never touches
+   ! any interior/"3D" state variable directly). ---
+   call self%register_dependency(self%id_oxy,'oxy_c0','mmol O2 m-3', &
         'oxygen concentration at the sediment-water interface')
-   call self%register_state_dependency(self%id_fdet,'fdet_c0','mmol C m-3', &
+   call self%register_dependency(self%id_fdet,'fdet_c0','mmol C m-3', &
         'fast detritus concentration at the sediment-water interface')
-   call self%register_state_dependency(self%id_sdet,'sdet_c0','mmol C m-3', &
+   call self%register_dependency(self%id_sdet,'sdet_c0','mmol C m-3', &
         'slow detritus concentration at the sediment-water interface')
-   call self%register_state_dependency(self%id_ch4,'ch4_c0','mmol C m-3', &
+   call self%register_dependency(self%id_ch4,'ch4_c0','mmol C m-3', &
         'methane concentration at the sediment-water interface')
+
+   ! --- mass-balance flux OUTPUTS, as diagnostics (mmol m-2 s-1, positive
+   ! into the pelagic pool) -- consumed by a separate external_bottom_flux
+   ! instance per quantity in YAML to actually apply them, see header. ---
+   call self%register_diagnostic_variable(self%id_oxy_flux,'oxy_flux','mmol O2 m-2 s-1', &
+        'net O2 exchange with the pelagic oxy pool (positive into the water column)', &
+        output=output_instantaneous, source=source_do_bottom)
+   call self%register_diagnostic_variable(self%id_fdet_flux,'fdet_flux','mmol C m-2 s-1', &
+        'net fdet exchange with the pelagic fdet pool (positive into the water column)', &
+        output=output_instantaneous, source=source_do_bottom)
+   call self%register_diagnostic_variable(self%id_sdet_flux,'sdet_flux','mmol C m-2 s-1', &
+        'net sdet exchange with the pelagic sdet pool (positive into the water column)', &
+        output=output_instantaneous, source=source_do_bottom)
+   call self%register_diagnostic_variable(self%id_ch4_flux,'ch4_flux','mmol C m-2 s-1', &
+        'net ch4 exchange with the pelagic ch4 pool (positive into the water column)', &
+        output=output_instantaneous, source=source_do_bottom)
 
    ! --- read-only forcing dependencies ---
    ! so4 is NOT derived from salinity here (see header rationale) -- it
@@ -359,7 +398,13 @@
    call self%register_dependency(self%id_so4,'so4_c0','mmol m-3', &
         'sulfate concentration at the sediment-water interface (couple explicitly -- '// &
         'do NOT assume a fixed salinity-sulfate relationship, see header note)')
-   call self%register_dependency(self%id_temp,standard_variables%temperature)
+   ! NOT standard_variables%temperature -- no bottom-domain temperature
+   ! standard variable exists in this FABM tree, and the interior one
+   ! would reintroduce exactly the "3D" coupling this module avoids
+   ! elsewhere (see header). Plain named dependency instead, same
+   ! convention as no3_c0/so4_c0.
+   call self%register_dependency(self%id_temp,'temp_c0','degree_C', &
+        'bottom water temperature (methanogenesis Q10 factor only)')
 
    return
 
@@ -379,7 +424,7 @@
    _DECLARE_ARGUMENTS_DO_BOTTOM_
 !
 ! !LOCAL VARIABLES:
-   real(rk) :: oxy0, C0_fast, C0_slow, ch4_surface, no3_surface, so4, temp_celsius
+   real(rk) :: oxy_surface, fdet_surface, sdet_surface, ch4_surface, no3_surface, so4, temp_celsius
    real(rk) :: L, LCf, LCs, Leff, LCfeff, LCseff, ch4eff
    real(rk) :: temp_kelvin, E_a_meth, f_temp_meth
    real(rk) :: Oxicminlim, Denitrilim, anoxic_space, f_so4, f_meth
@@ -401,9 +446,9 @@
    _HORIZONTAL_LOOP_BEGIN_
 
    ! Interfacial (bottom-most pelagic cell) concentrations and forcing
-   _GET_(self%id_oxy,oxy0)
-   _GET_(self%id_fdet,C0_fast)
-   _GET_(self%id_sdet,C0_slow)
+   _GET_(self%id_oxy,oxy_surface)
+   _GET_(self%id_fdet,fdet_surface)
+   _GET_(self%id_sdet,sdet_surface)
    _GET_(self%id_ch4,ch4_surface)
    _GET_(self%id_no3,no3_surface)
    _GET_(self%id_so4,so4)
@@ -425,9 +470,9 @@
    E_a_meth = 0.1_rk * log(self%q10_meth) * self%Tref * (self%Tref + 10.0_rk)
    f_temp_meth = exp(-E_a_meth * (1.0_rk/temp_kelvin - 1.0_rk/self%Tref))
 
-   Oxicminlim = oxy0 / (oxy0 + self%ksO2oxic + self%relaxO2*(self%nh3_amb + self%odu_amb))
-   Denitrilim = (1.0_rk - oxy0/(oxy0 + self%kinO2denit)) * no3_surface/(no3_surface + self%ksNO3denit)
-   anoxic_space = (1.0_rk - oxy0/(oxy0 + self%kinO2anox)) * (1.0_rk - no3_surface/(no3_surface + self%kinNO3anox))
+   Oxicminlim = oxy_surface / (oxy_surface + self%ksO2oxic + self%relaxO2*(self%nh3_amb + self%odu_amb))
+   Denitrilim = (1.0_rk - oxy_surface/(oxy_surface + self%kinO2denit)) * no3_surface/(no3_surface + self%ksNO3denit)
+   anoxic_space = (1.0_rk - oxy_surface/(oxy_surface + self%kinO2anox)) * (1.0_rk - no3_surface/(no3_surface + self%kinNO3anox))
    f_so4 = so4 / (self%kinSO4 + so4)
    f_meth = self%kinSO4 / (self%kinSO4 + so4)
    SulfateMinlim = anoxic_space * f_so4
@@ -440,10 +485,10 @@
    me_frac = Methanolim / total_lim
 
    ! --- marginal & integrated carbon demand ---
-   marg_fdet = self%rFast * (C0_fast/LCfeff) * exp(-Leff/LCfeff)
-   marg_sdet = self%rSlow * (C0_slow/LCseff) * exp(-Leff/LCseff)
-   fdet_demand = self%rFast * C0_fast * LCfeff * (1.0_rk - exp(-Leff/LCfeff))
-   sdet_demand = self%rSlow * C0_slow * LCseff * (1.0_rk - exp(-Leff/LCseff))
+   marg_fdet = self%rFast * (fdet_surface/LCfeff) * exp(-Leff/LCfeff)
+   marg_sdet = self%rSlow * (sdet_surface/LCseff) * exp(-Leff/LCseff)
+   fdet_demand = self%rFast * fdet_surface * LCfeff * (1.0_rk - exp(-Leff/LCfeff))
+   sdet_demand = self%rSlow * sdet_surface * LCseff * (1.0_rk - exp(-Leff/LCseff))
    total_C = fdet_demand + sdet_demand
 
    ! --- oxygen-depth trait ODE: marginal cost uses the TOTAL local O2
@@ -454,7 +499,7 @@
    marg_oduox = su_frac * (marg_fdet + marg_sdet)
    dCostdL = marg_oxicmin + marg_nitri + marg_oduox
 
-   benefit = oxy0 / (euler_e * Leff)
+   benefit = oxy_surface / (euler * Leff)
    dLdt = self%rate_L * (benefit - dCostdL)
    ! Reflecting floor and domain ceiling (see header escape-threshold caveat)
    if (L <= self%Lmin .and. dLdt < 0.0_rk) dLdt = 0.0_rk
@@ -499,11 +544,16 @@
    _ADD_BOTTOM_SOURCE_(self%id_fdet_depth, dLCfdt _CONV_UNIT_)
    _ADD_BOTTOM_SOURCE_(self%id_sdet_depth, dLCsdt _CONV_UNIT_)
 
-   ! Pelagic partners: bottom fluxes closing the mass balance.
-   _ADD_BOTTOM_FLUX_(self%id_oxy,  -total_o2_demand _CONV_UNIT_)
-   _ADD_BOTTOM_FLUX_(self%id_fdet, -fdet_demand _CONV_UNIT_)
-   _ADD_BOTTOM_FLUX_(self%id_sdet, -sdet_demand _CONV_UNIT_)
-   _ADD_BOTTOM_FLUX_(self%id_ch4,  (ch4_production - ch4_consumption_areal) _CONV_UNIT_)
+   ! Pelagic partners: mass-balance fluxes exposed as diagnostics (mmol
+   ! m-2 s-1, positive into the water column) -- NOT applied directly
+   ! (see header: this module never touches an interior/"3D" state
+   ! variable itself). An external_bottom_flux instance per quantity in
+   ! YAML picks these up and applies them to whatever real pelagic state
+   ! variable is actually present at the deployment site.
+   _SET_HORIZONTAL_DIAGNOSTIC_(self%id_oxy_flux,  -total_o2_demand _CONV_UNIT_)
+   _SET_HORIZONTAL_DIAGNOSTIC_(self%id_fdet_flux, -fdet_demand _CONV_UNIT_)
+   _SET_HORIZONTAL_DIAGNOSTIC_(self%id_sdet_flux, -sdet_demand _CONV_UNIT_)
+   _SET_HORIZONTAL_DIAGNOSTIC_(self%id_ch4_flux,  (ch4_production - ch4_consumption_areal) _CONV_UNIT_)
 
    _SET_HORIZONTAL_DIAGNOSTIC_(self%id_dLdt, dLdt)
    _SET_HORIZONTAL_DIAGNOSTIC_(self%id_ox_frac, ox_frac)

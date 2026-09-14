@@ -10,16 +10,23 @@
 #
 # Deliberately coupled here to plain builtin 'tracer' pools rather than
 # to hereon/omexdia_c: this isolates the trait model's own registration/
-# mass-balance behaviour from omexdia_c's own kinetics (and from a
-# pre-existing bug in omexdia_c.F90, which references
-# standard_variables%salinity -- not defined in this FABM tree, which
-# only has practical_salinity; omexdia_c is not yet wired into the
-# model library for that reason). Revisit once that is fixed.
+# mass-balance behaviour from omexdia_c's own kinetics. omexdia_c is now
+# fixed and wired in (see HANDOFF.md) -- for the real coupled pairing
+# the trait model's own header actually describes, see
+# fabm-omexdia-c-bottom-coupled.yaml instead.
 #
-# no3_c0/so4_c0 are read-only (diagnostic-only) forcing in the trait
-# model, so they are supplied via interior_constant rather than a
-# tracer pool. so4 = 800 mmol/m3 matches the Elbe/Geesthacht freshwater
-# station used during prototype validation
+# omexdia_c_bottom no longer declares any interior/"3D" state
+# dependency at all (see its own header): oxy_c0/fdet_c0/sdet_c0/ch4_c0
+# are plain read-only dependencies here, and its mass-balance output is
+# four DIAGNOSTICS (oxy_flux/fdet_flux/sdet_flux/ch4_flux, mmol m-2
+# s-1) rather than a direct flux to the pools below -- applying each
+# onto the tracer pools is done by a separate external_bottom_flux
+# instance per quantity (a builtin FABM utility model).
+#
+# no3_c0/so4_c0/temp_c0 are read-only forcing in the trait model, so
+# they are supplied via interior_constant rather than a tracer pool.
+# so4 = 800 mmol/m3 matches the Elbe/Geesthacht freshwater station used
+# during prototype validation
 # (handoff/prototypes/elbe_stations_scenarios.py) -- deliberately NOT
 # a marine value, to exercise the independent so4 coupling (see
 # HANDOFF.md caveat 4: so4 must never be re-derived from salinity).
@@ -64,6 +71,11 @@ instances:
     parameters:
       value: 800.0         # mmol m-3 -- see header note (Elbe/Geesthacht, non-marine)
 
+  temp_forcing:
+    model: interior_constant
+    parameters:
+      value: 10.0           # degree_C
+
   trait:
     model: hereon/omexdia_c_bottom
     coupling:
@@ -73,6 +85,34 @@ instances:
       ch4_c0: ch4_pool/c
       no3_c0: no3_forcing/data
       so4_c0: so4_forcing/data
+      temp_c0: temp_forcing/data
+
+  # Applies trait's own oxy_flux/fdet_flux/sdet_flux/ch4_flux
+  # diagnostics (mmol m-2 s-1) as real bottom fluxes onto the tracer
+  # pools above.
+  oxy_flux_apply:
+    model: external_bottom_flux
+    coupling:
+      target: oxy_pool/c
+      flux: trait/oxy_flux
+
+  fdet_flux_apply:
+    model: external_bottom_flux
+    coupling:
+      target: fdet_pool/c
+      flux: trait/fdet_flux
+
+  sdet_flux_apply:
+    model: external_bottom_flux
+    coupling:
+      target: sdet_pool/c
+      flux: trait/sdet_flux
+
+  ch4_flux_apply:
+    model: external_bottom_flux
+    coupling:
+      target: ch4_pool/c
+      flux: trait/ch4_flux
 
   # NOTE: flux is in state-variable-units * m s-1 (i.e. an AREAL rate,
   # mmol m-2 s-1, once multiplied through). fabm-omexdia.yaml's own

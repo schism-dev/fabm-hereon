@@ -1,0 +1,113 @@
+# SPDX-FileCopyrightText: 2022-2026 Helmholtz-Zentrum hereon GmbH
+# SPDX-License-Identifier: CC0-1.0
+
+# 0-D testcase pairing the trait-based adaptive sediment-depth model
+# (hereon/omexdia_c_bottom) with its actually-intended pelagic partner
+# (hereon/omexdia_c), as described in omexdia_c_bottom's own header
+# comment. This supersedes the "revisit once that is fixed" note in
+# fabm-omexdia-c-bottom.yaml: omexdia_c.F90 had three real bugs (an
+# undefined standard_variables%salinity, an undeclared AnoxicMin left
+# over from a partial refactor, and a nonexistent _DT_ macro) that are
+# now fixed -- see src/omexdia/handoff/HANDOFF.md for the fix history.
+#
+# omexdia_c_bottom no longer declares any interior/"3D" state
+# dependency at all (see its own header): oxy_c0/fdet_c0/sdet_c0/ch4_c0/
+# no3_c0/so4_c0/temp_c0 are all plain read-only concentration
+# dependencies, coupled below straight to omexdia_c's real state (or,
+# for so4/temp, to a constant -- omexdia_c has no so4/temp variable of
+# its own to couple to; so4 is deliberately independent, see caveat 4
+# below). Its own mass-balance output is four DIAGNOSTICS (oxy_flux/
+# fdet_flux/sdet_flux/ch4_flux, mmol m-2 s-1) rather than a direct
+# flux -- applying each onto the real omexdia_c state variable is done
+# by a separate external_bottom_flux instance per quantity below (a
+# builtin FABM utility model), which is the only place in this whole
+# testcase that ties a specific pelagic state variable identity to the
+# trait model's output.
+#
+# so4_c0 cannot couple to omexdia_c directly: omexdia_c derives so4
+# internally from salinity (sulfate_from_salinity) and never registers
+# it as a FABM variable, so it stays supplied independently here via
+# interior_constant -- consistent with HANDOFF.md caveat 4 (so4 must
+# never be re-derived from salinity for the trait model).
+
+instances:
+
+  omexdia_c:
+    model: hereon/omexdia_c
+    initialization:
+      fdet: 4.e3          # mmolC m**-3
+      sdet: 4.e3          # mmolC m**-3
+      pdet: 4.e3          # mmolP m**-3
+      po4: 10.0           # mmolP m**-3
+      no3: 20.0           # mmolN m**-3
+      nh3: 40.0           # mmolN m**-3
+      oxy: 100.0          # mmolO2 m**-3
+      odu: 100.0          # mmol m**-3
+      ch4: 0.0            # mmolC m**-3
+      ch4_gas: 0.0        # mmolC m**-3
+
+  so4_forcing:
+    model: interior_constant
+    parameters:
+      value: 800.0        # mmol m-3 -- Elbe/Geesthacht-like non-marine sulfate
+
+  temp_forcing:
+    model: interior_constant
+    parameters:
+      value: 10.0          # degree_C -- temp_c0 is a plain dependency now
+                            # (no standard_variable, see header), so it is
+                            # no longer auto-filled from the host
+                            # environment and needs an explicit source.
+
+  trait:
+    model: hereon/omexdia_c_bottom
+    coupling:
+      oxy_c0: omexdia_c/oxy
+      fdet_c0: omexdia_c/fdet
+      sdet_c0: omexdia_c/sdet
+      ch4_c0: omexdia_c/ch4
+      no3_c0: omexdia_c/no3
+      so4_c0: so4_forcing/data
+      temp_c0: temp_forcing/data
+
+  # Applies trait's own oxy_flux/fdet_flux/sdet_flux/ch4_flux
+  # diagnostics (mmol m-2 s-1) as real bottom fluxes onto omexdia_c's
+  # state -- this is the only place any specific pelagic variable
+  # identity is tied to the trait model's output.
+  oxy_flux_apply:
+    model: external_bottom_flux
+    coupling:
+      target: omexdia_c/oxy
+      flux: trait/oxy_flux
+
+  fdet_flux_apply:
+    model: external_bottom_flux
+    coupling:
+      target: omexdia_c/fdet
+      flux: trait/fdet_flux
+
+  sdet_flux_apply:
+    model: external_bottom_flux
+    coupling:
+      target: omexdia_c/sdet
+      flux: trait/sdet_flux
+
+  ch4_flux_apply:
+    model: external_bottom_flux
+    coupling:
+      target: omexdia_c/ch4
+      flux: trait/ch4_flux
+
+  fdet_flux:
+    model: constant_surface_flux
+    parameters:
+      flux: 1.0e-5         # state variable units * m s-1 (illustrative, see fabm-omexdia-c-bottom.yaml note)
+    coupling:
+      target: omexdia_c/fdet
+
+  oxy_flux:
+    model: constant_surface_flux
+    parameters:
+      flux: 1.0e-4         # state variable units * m s-1
+    coupling:
+      target: omexdia_c/oxy

@@ -53,6 +53,7 @@
       real(rk) :: ksAOM  ! Anaerobic methane oxidation
       real(rk) :: rmaxO2
       real(rk) :: ksCH4   ! methanogenesis
+      real(rk) :: strip_rate ! CH4 saturation-capping relaxation rate
 
       contains
 
@@ -115,6 +116,10 @@
    call self%get_parameter(self%ksAOM,'ksAOM','m3 mmol-1 d-1','second-order anaerobic methane oxidation rate',default=0.05_rk)
    call self%get_parameter(self%rmaxO2,'rmaxO2','d-1','maximum aerobic methane oxidation rate',default=10.0_rk)
    call self%get_parameter(self%ksCH4,'ksCH4','mmol m-3','half-saturation CH4 for aerobic oxidation',default=5.0_rk)
+   call self%get_parameter(self%strip_rate,'strip_rate','d-1', &
+        'relaxation rate capping dissolved CH4 at ch4_sat (bubble stripping to ch4_gas); '// &
+        'fast and solver-independent by design -- NOT literally 1/dt (no _DT_ macro exists '// &
+        'in this FABM version)', default=100.0_rk)
 
    ! Register state variables
    call self%register_state_variable(self%id_fdet, 'fdet', 'mmolC m**-3', 'fast detritus C',              4.e3_rk, minimum=0.0_rk)
@@ -148,7 +153,9 @@
    ! Register dependencies
    
    call self%register_dependency(self%id_temp,standard_variables%temperature)
-   call self%register_dependency(self%id_salinity,standard_variables%salinity)
+   ! NOTE: no standard_variables%salinity in this FABM tree -- it is
+   ! practical_salinity here (confirmed against base/include/standard_variables.h).
+   call self%register_dependency(self%id_salinity,standard_variables%practical_salinity)
 
    return
 
@@ -175,7 +182,7 @@
 ! !LOCAL VARIABLES:
    real(rk) :: fdet,sdet,oxy,odu,no3,nh3,pdet,po4
    real(rk) :: temp_celsius,temp_kelvin,f_T,E_a
-   real(rk) :: radsP,Oxicminlim,Denitrilim,Anoxiclim,Rescale,rP
+   real(rk) :: radsP,Oxicminlim,Denitrilim,Rescale,rP
    real(rk),parameter :: relaxO2=0.04_rk
    real(rk),parameter :: T0 = 288.15_rk ! reference Temperature fixed to 15 degC
    real(rk),parameter :: Q10b = 1.5_rk
@@ -295,9 +302,14 @@
    ! CH4_sat = k_h(temperature, salinity) 
    ! then later bubbles connect on a gas saturation threshold, typicall 10% of pore volume.
 
-   ! Cap dissolved CH4 at saturation and strip everything above to gaseous CH4
+   ! Cap dissolved CH4 at saturation and strip everything above to gaseous
+   ! CH4. NOTE: was `/ _DT_` -- no such macro exists in this FABM version
+   ! (models are meant to be solver/timestep-independent anyway), so this
+   ! uses a fast relaxation rate (self%strip_rate, d-1) instead, matching
+   ! the d-1 units of every other rate feeding into the same _CONV_UNIT_
+   ! group below.
    if (ch4 > ch4_sat) then
-      local_stripping = (ch4 - ch4_sat) / _DT_
+      local_stripping = (ch4 - ch4_sat) * self%strip_rate
    else
       local_stripping = 0.0_rk
    end if
@@ -309,7 +321,12 @@
    _ADD_SOURCE_(self%id_oxy , (-OxicMin - 2.0_rk* Nitri - OduOx) _CONV_UNIT_)
    _ADD_SOURCE_(self%id_no3 , (-0.8_rk*Denitrific + Nitri) _CONV_UNIT_)     ! from 4/5 denitrification stoichiometry
    _ADD_SOURCE_(self%id_nh3 , (f_T * Nprod - Nitri) / (1.0_rk + self%NH3Ads) _CONV_UNIT_)
-   _ADD_SOURCE_(self%id_odu , (AnoxicMin - OduOx - OduDepo) _CONV_UNIT_)
+   ! NOTE: was `AnoxicMin`, a leftover from the pre-sulfate/methane 3-way
+   ! partition (still in omexdia_p.F90) -- this file replaced it with the
+   ! 4-way OxicMin/Denitrific/SulfateMin/r_methano split (see OduDepo
+   ! above, which was correctly updated) but missed this line; AnoxicMin
+   ! was never declared here, so it would not have compiled.
+   _ADD_SOURCE_(self%id_odu , (SulfateMin - OduOx - OduDepo) _CONV_UNIT_)
    _ADD_SOURCE_(self%id_po4 , (f_T * Pprod - radsP) _CONV_UNIT_)
    _ADD_SOURCE_(self%id_pdet, (radsP - f_T * Pprod) _CONV_UNIT_)
    _ADD_SOURCE_(self%id_ch4,     (g_ch4 - r_oxic_ox - r_aom - local_stripping) _CONV_UNIT_)

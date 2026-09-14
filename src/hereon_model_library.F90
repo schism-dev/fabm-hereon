@@ -25,6 +25,7 @@ contains
       use hereon_light
       use hereon_omexdia_p
       use hereon_omexdia_bottom
+      use hereon_omexdia_c_bottom
       use hereon_omexdia_for_nope
       use hereon_nope
 
@@ -36,6 +37,7 @@ contains
          case ('light');  allocate(type_hereon_light::model)
          case ('omexdia_p'); allocate(type_hereon_omexdia_p::model)
          case ('omexdia_bottom'); allocate(type_hereon_omexdia_bottom::model)
+         case ('omexdia_c_bottom'); allocate(type_hereon_omexdia_c_bottom::model)
          case ('omexdia_for_nope'); allocate(type_hereon_omexdia_for_nope::model)
          case ('nope'); allocate(type_hereon_nope::model)
       end select

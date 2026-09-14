@@ -1,0 +1,96 @@
+# SPDX-FileCopyrightText: 2022-2026 Helmholtz-Zentrum hereon GmbH
+# SPDX-License-Identifier: CC0-1.0
+
+# 0-D testcase for the trait-based adaptive sediment-depth model
+# (hereon/omexdia_c_bottom, see src/omexdia/handoff/HANDOFF.md and
+# README_o2_trait_depth.md for background). It is a benthic (do_bottom)
+# model with three trait state variables (oxy_depth/fdet_depth/
+# sdet_depth) and four pelagic mass-balance couplings (oxy/fdet/sdet/
+# ch4), so it needs pelagic partners to close its fluxes against.
+#
+# Deliberately coupled here to plain builtin 'tracer' pools rather than
+# to hereon/omexdia_c: this isolates the trait model's own registration/
+# mass-balance behaviour from omexdia_c's own kinetics (and from a
+# pre-existing bug in omexdia_c.F90, which references
+# standard_variables%salinity -- not defined in this FABM tree, which
+# only has practical_salinity; omexdia_c is not yet wired into the
+# model library for that reason). Revisit once that is fixed.
+#
+# no3_c0/so4_c0 are read-only (diagnostic-only) forcing in the trait
+# model, so they are supplied via interior_constant rather than a
+# tracer pool. so4 = 800 mmol/m3 matches the Elbe/Geesthacht freshwater
+# station used during prototype validation
+# (handoff/prototypes/elbe_stations_scenarios.py) -- deliberately NOT
+# a marine value, to exercise the independent so4 coupling (see
+# HANDOFF.md caveat 4: so4 must never be re-derived from salinity).
+
+instances:
+
+  oxy_pool:
+    model: tracer
+    parameters:
+      units: mmol m-3
+    initialization:
+      c: 100.0            # mmolO2 m**-3
+
+  fdet_pool:
+    model: tracer
+    parameters:
+      units: mmolC m-3
+    initialization:
+      c: 4.0e3             # mmolC m**-3
+
+  sdet_pool:
+    model: tracer
+    parameters:
+      units: mmolC m-3
+    initialization:
+      c: 4.0e3             # mmolC m**-3
+
+  ch4_pool:
+    model: tracer
+    parameters:
+      units: mmolC m-3
+    initialization:
+      c: 0.0
+
+  no3_forcing:
+    model: interior_constant
+    parameters:
+      value: 20.0          # mmol N m-3
+
+  so4_forcing:
+    model: interior_constant
+    parameters:
+      value: 800.0         # mmol m-3 -- see header note (Elbe/Geesthacht, non-marine)
+
+  trait:
+    model: hereon/omexdia_c_bottom
+    coupling:
+      oxy_c0: oxy_pool/c
+      fdet_c0: fdet_pool/c
+      sdet_c0: sdet_pool/c
+      ch4_c0: ch4_pool/c
+      no3_c0: no3_forcing/data
+      so4_c0: so4_forcing/data
+
+  # NOTE: flux is in state-variable-units * m s-1 (i.e. an AREAL rate,
+  # mmol m-2 s-1, once multiplied through). fabm-omexdia.yaml's own
+  # fdet_flux/oxy_flux use flux=10/100 at that same nominal magnitude,
+  # which -- verified here by an actual smoke-test run -- drives oxy_pool
+  # into the hundreds-of-thousands of mmol/m3 within days. Kept small and
+  # explicitly illustrative here instead (not calibrated to a real site;
+  # see handoff/prototypes/elbe_stations_scenarios.py for that).
+  oxy_flux:
+    model: constant_surface_flux
+    parameters:
+      flux: 1.0e-4          # state variable units * m s-1
+    coupling:
+      target: oxy_pool/c
+
+  fdet_flux:
+    model: constant_surface_flux
+    parameters:
+      flux: 1.0e-5           # state variable units * m s-1
+    coupling:
+      target: fdet_pool/c

@@ -212,6 +212,47 @@
 ! for those would require inventing a profile shape (or, for sulfur, an
 ! S:C ratio) not otherwise used anywhere else in this module.
 !
+! POROSITY WEIGHTING OF INVENTORIES (id_porosity, id_z_poros, both
+! OPTIONAL HORIZONTAL dependencies): all five inventories above (O2,
+! fdet, sdet, pdet, po4) previously integrated as if concentrations
+! filled 100% of the bulk sediment volume at every depth. Real
+! sediments are only partly pore water -- porosity phi(z) is the pore-
+! water volume fraction, and it declines with depth via compaction
+! (Berner's classic law):
+!   phi(z) = porosity_inf + (porosity - porosity_inf)*exp(-z/z_poros)
+! DISSOLVED species (oxy, po4) are conventionally expressed per unit
+! PORE-WATER volume, so their true inventory needs a phi(z) weight.
+! PARTICULATE species (fdet, sdet, pdet) are conventionally expressed
+! per unit SOLID volume, so their true inventory needs a (1-phi(z))
+! weight instead -- NOT the same weight as the dissolved species (that
+! would get the depth-dependence backwards: compaction makes deeper
+! sediment MORE solid, not less, the opposite direction phi(z) itself
+! moves). Both weights are handled by ONE helper function,
+! porosity_weighted_inventory(), since (1-phi(z)) is exactly the same
+! two-exponential shape as phi(z) with different constants -- see that
+! function for the closed-form integral (composes with the existing
+! X_surface*exp(-z/scale) profiles into a second exponential term, no
+! numerical integration needed).
+!
+! porosity_inf (asymptotic deep porosity) is a plain fixed PARAMETER,
+! not a dependency -- only the SURFACE porosity and the compaction
+! depth scale are exposed as (optional) horizontal dependencies, with
+! fixed-parameter fallbacks (porosity_default=0.7, z_poros_default=
+! 0.15 m, porosity_inf=0.5) if not coupled. All three defaults are
+! rough literature-typical values for a muddy continental shelf,
+! UNVALIDATED against any real site -- couple id_porosity/id_z_poros to
+! a real sediment-property source (a grain-size/sediment-type map, a
+! separate compaction submodel, etc.) wherever possible.
+!
+! DELIBERATELY SCOPED to the standing-stock inventories only -- this
+! does NOT touch the reaction-rate/flux formulas (fdet_demand,
+! oxicmin_o2, marg_fdet, every _ADD_BOTTOM_SOURCE_/_ADD_BOTTOM_FLUX_-
+! adjacent term, etc., all still implicitly bulk-volume). Those rate
+! constants (rFast, rnit, ...) were never calibrated with porosity in
+! mind; retrofitting it into the actual dynamics (not just these
+! diagnostics) would be a real behavior change requiring its own
+! validation, and is out of scope here.
+!
 ! !USES:
    use fabm_types
 
@@ -261,6 +302,13 @@
       type (type_dependency_id)                      :: id_so4
       type (type_dependency_id)                      :: id_salinity
       type (type_dependency_id)                      :: id_temp
+!     Sediment porosity properties, OPTIONAL HORIZONTAL dependencies
+!     (genuinely horizontal -- a sediment-column property, not a
+!     pelagic one sampled at the interface, unlike oxy_c0 etc. above).
+!     Used only for porosity-weighting the inventory diagnostics; see
+!     header. Fixed-parameter fallbacks if not coupled.
+      type (type_horizontal_dependency_id)          :: id_porosity
+      type (type_horizontal_dependency_id)          :: id_z_poros
 !     Diagnostics (horizontal-only, matching the trait states' domain).
       type (type_horizontal_diagnostic_variable_id) :: id_dLdt
       type (type_horizontal_diagnostic_variable_id) :: id_ox_frac, id_de_frac
@@ -288,6 +336,7 @@
       real(rk) :: q10_meth, Tref
       real(rk) :: nh3_amb, odu_amb
       real(rk) :: so4_default
+      real(rk) :: porosity_default, z_poros_default, porosity_inf
       real(rk) :: rmaxO2, ksCH4, ksAOM, H_REF
 
       contains
@@ -386,6 +435,18 @@
         'last-resort so4 fallback used ONLY if neither so4_c0 nor salinity_c0 is coupled '// &
         '(see header) -- full-marine (S=35) by default; NOT used at all if either dependency '// &
         'is actually supplied', default=28000.0_rk)
+
+   ! --- porosity (inventory-weighting only, see header; NOT used in any
+   ! reaction/flux formula) ---
+   call self%get_parameter(self%porosity_default,'porosity_default','-', &
+        'surface porosity fallback used ONLY if id_porosity is not coupled -- rough '// &
+        'muddy-shelf default, UNVALIDATED (see header)', default=0.7_rk)
+   call self%get_parameter(self%z_poros_default,'z_poros_default','m', &
+        'compaction attenuation-depth fallback used ONLY if id_z_poros is not coupled -- '// &
+        'rough muddy-shelf default, UNVALIDATED (see header)', default=0.15_rk)
+   call self%get_parameter(self%porosity_inf,'porosity_inf','-', &
+        'asymptotic deep (fully compacted) porosity -- always a fixed parameter, not a '// &
+        'dependency, unlike surface porosity/compaction depth above', default=0.5_rk)
 
    ! --- CH4 parameters ---
    call self%get_parameter(self%rmaxO2,'rmaxO2','d-1', &
@@ -518,6 +579,17 @@
    call self%register_dependency(self%id_temp,'temp_c0','degree_C', &
         'bottom water temperature (methanogenesis Q10 factor only)')
 
+   ! --- porosity, OPTIONAL HORIZONTAL dependencies (see header) --
+   ! inventory-weighting only, falls back to porosity_default/
+   ! z_poros_default if not coupled.
+   call self%register_dependency(self%id_porosity,'porosity','-', &
+        'surface (interfacial) porosity, used only to weight the sediment inventory '// &
+        'diagnostics -- couple to a real sediment-property source where possible, see header', &
+        required=.false.)
+   call self%register_dependency(self%id_z_poros,'z_poros','m', &
+        'compaction attenuation depth (porosity decline with depth), used only to weight '// &
+        'the sediment inventory diagnostics -- see header', required=.false.)
+
    return
 
    end subroutine initialize
@@ -538,6 +610,7 @@
 ! !LOCAL VARIABLES:
    real(rk) :: oxy_surface, fdet_surface, sdet_surface, ch4_surface, no3_surface, so4, temp_celsius
    real(rk) :: salinity
+   real(rk) :: porosity_0, z_poros
    real(rk) :: pdet_surface, po4_surface
    real(rk) :: L, LCf, LCs, Leff, LCfeff, LCseff, ch4eff
    real(rk) :: temp_kelvin, E_a_meth, f_temp_meth
@@ -582,6 +655,19 @@
       so4 = sulfate_from_salinity(salinity)
    else
       so4 = self%so4_default
+   end if
+
+   ! porosity/compaction-depth: same optional-with-fallback pattern
+   ! (see header). Inventory-weighting only.
+   if (_AVAILABLE_HORIZONTAL_(self%id_porosity)) then
+      _GET_HORIZONTAL_(self%id_porosity,porosity_0)
+   else
+      porosity_0 = self%porosity_default
+   end if
+   if (_AVAILABLE_HORIZONTAL_(self%id_z_poros)) then
+      _GET_HORIZONTAL_(self%id_z_poros,z_poros)
+   else
+      z_poros = self%z_poros_default
    end if
 
    ! Current trait values (bottom, horizontal-only state variables)
@@ -695,13 +781,21 @@
    _SET_HORIZONTAL_DIAGNOSTIC_(self%id_ch4_prod, ch4_production)
    _SET_HORIZONTAL_DIAGNOSTIC_(self%id_at_ceiling, at_ceiling_flag)
 
-   ! --- sediment inventory diagnostics (standing stock, 0-Lmax box; see
-   ! header) -- same exponential profile shape marg_fdet/marg_sdet/
-   ! benefit above are already derived from, just integrated to a fixed
-   ! bound (Lmax) instead of the trait's own (moving) depth. ---
-   oxy_inventory  = oxy_surface  * Leff   * (1.0_rk - exp(-self%Lmax/Leff))
-   fdet_inventory = fdet_surface * LCfeff * (1.0_rk - exp(-self%Lmax/LCfeff))
-   sdet_inventory = sdet_surface * LCseff * (1.0_rk - exp(-self%Lmax/LCseff))
+   ! --- sediment inventory diagnostics (standing stock, 0-Lmax box,
+   ! porosity-weighted; see header) -- same exponential profile shape
+   ! marg_fdet/marg_sdet/benefit above are already derived from, just
+   ! integrated to a fixed bound (Lmax) instead of the trait's own
+   ! (moving) depth, and now weighted by the pore-water (dissolved) or
+   ! solid (particulate) volume fraction instead of assuming 100% bulk
+   ! volume. porosity_weighted_inventory()'s w0/winf arguments select
+   ! which: (porosity_0, porosity_inf) for dissolved, (1-porosity_0,
+   ! 1-porosity_inf) for particulate -- see that function. ---
+   oxy_inventory  = porosity_weighted_inventory(oxy_surface,  Leff, &
+        porosity_0, self%porosity_inf, z_poros, self%Lmax)
+   fdet_inventory = porosity_weighted_inventory(fdet_surface, LCfeff, &
+        1.0_rk-porosity_0, 1.0_rk-self%porosity_inf, z_poros, self%Lmax)
+   sdet_inventory = porosity_weighted_inventory(sdet_surface, LCseff, &
+        1.0_rk-porosity_0, 1.0_rk-self%porosity_inf, z_poros, self%Lmax)
    totC_inventory = fdet_inventory + sdet_inventory
    totN_inventory = self%NCrFdet*fdet_inventory + self%NCrSdet*sdet_inventory
    ! pdet assumed to share fdet's own spatial scale (fdet_depth); po4
@@ -709,8 +803,10 @@
    ! dissolved porewater species -- see header note on both assumptions,
    ! and on the sorption/desorption coupling deliberately NOT reproduced
    ! between them.
-   pdet_inventory = pdet_surface * LCfeff * (1.0_rk - exp(-self%Lmax/LCfeff))
-   po4_inventory  = po4_surface  * Leff   * (1.0_rk - exp(-self%Lmax/Leff))
+   pdet_inventory = porosity_weighted_inventory(pdet_surface, LCfeff, &
+        1.0_rk-porosity_0, 1.0_rk-self%porosity_inf, z_poros, self%Lmax)
+   po4_inventory  = porosity_weighted_inventory(po4_surface,  Leff, &
+        porosity_0, self%porosity_inf, z_poros, self%Lmax)
    totP_inventory = pdet_inventory + po4_inventory
 
    _SET_HORIZONTAL_DIAGNOSTIC_(self%id_totO2_soil,     oxy_inventory)
@@ -742,5 +838,30 @@
 
       so4 = (28000.0_rk / 35.0_rk) * max(0.0_rk, salinity)
    end function sulfate_from_salinity
+
+   ! Porosity-weighted depth integral, 0 to Zmax, of a quantity whose
+   ! own profile is X_surface*exp(-z/scale) (the same exponential shape
+   ! every trait-driven profile in this module already has), weighted
+   ! by a Berner-type compaction profile w(z) = winf + (w0-winf)*
+   ! exp(-z/z_poros). Call with w0=porosity/winf=porosity_inf for a
+   ! DISSOLVED quantity, or w0=(1-porosity)/winf=(1-porosity_inf) for a
+   ! PARTICULATE one -- see header for why these must NOT be swapped.
+   !
+   ! Closed form: w(z)*exp(-z/scale) splits into two pure exponentials
+   ! (rate 1/scale, and rate 1/scale+1/z_poros), each integrating the
+   ! same way the model's un-weighted inventories already did:
+   !   integral = X_surface * [ winf*scale*(1-exp(-Zmax/scale))
+   !            + (w0-winf)*scale2*(1-exp(-Zmax/scale2)) ]
+   !   scale2 = scale*z_poros/(scale+z_poros)
+   ! No numerical integration -- this is exact given the assumed
+   ! exponential profile and exponential compaction law.
+   elemental function porosity_weighted_inventory(X_surface, scale, w0, winf, z_poros, Zmax) result(inv)
+      real(rk), intent(in) :: X_surface, scale, w0, winf, z_poros, Zmax
+      real(rk)             :: inv, scale2
+
+      scale2 = scale*z_poros / (scale+z_poros)
+      inv = X_surface * ( winf*scale*(1.0_rk - exp(-Zmax/scale)) &
+                         + (w0-winf)*scale2*(1.0_rk - exp(-Zmax/scale2)) )
+   end function porosity_weighted_inventory
 
    end module hereon_omexdia_c_bottom

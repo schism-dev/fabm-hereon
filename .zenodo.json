@@ -24,6 +24,10 @@
       "identifier": "hereon"
     }
   ],
+  "references": [
+    "Lemmen, C., Hofmeister, R., Klingbeil, K., Nasermoaddeli, M. H., Kerimoglu, O., Burchard, H., Kösters, F., and Wirtz, K. W.: Modular System for Shelves and Coasts (MOSSCO v1.0) – a flexible and multi-component framework for coupled coastal ocean ecosystem modelling, Geosci. Model Dev., 11, 915–935, https://doi.org/10.5194/gmd-11-915-2018, 2018.",
+    "Preußler, N.: Nitrous Oxide Production and Emission in the Oxygen Minimum Zone of the Elbe Estuary, BSc thesis, Global Environmental and Sustainability Studies, Leuphana Universität Lüneburg, 2025."
+  ],
   "related_identifiers": [
     {
       "identifier": "https://github.com/schism-dev/fabm-hereon",

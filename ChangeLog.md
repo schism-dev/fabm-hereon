@@ -10,8 +10,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `omexdia_c`: OMExDia extended with methane and sulfate cycling
+- `omexdia_c_bottom`: trait-based, bottom-only variant of the methane/sulfate OMExDia model
+- Zenodo metadata (`.zenodo.json`) with full creator/contributor list, ORCID identifiers, and funding acknowledgements
+- Pre-commit hooks enforcing REUSE license compliance and validating `.zenodo.json` against the Zenodo metadata schema
+
 ### Changed
 - Updated Readme with nope
+- Coupled `omexdia_c` via fluxes rather than states
+- Used salinity as a proxy for sulfate in `omexdia_c`
+- Added porosity to `omexdia_c`
+- Replaced Monod kinetics with exponential functions in `omexdia_c`
+
+### Fixed
+- Added missing SPDX license headers to `omexdia_c.F90` and `omexdia_c_bottom.F90`
 
 ## [0.3.0] - 2026-08-17
 

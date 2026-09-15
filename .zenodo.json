@@ -6,7 +6,7 @@
   "access_right": "open",
   "language": "eng",
   "thesis_university": "Leuphana University Lüneburg",
-  "notes": "Copyright 2022-2026 Helmholtz-Zentrum hereon GmbH",
+  "notes": "Copyright 2022-2026 Helmholtz-Zentrum hereon GmbH. This work was funded by the Bundesministerium für Forschung, Technologie und Raumfahrt (BMFTR/BMBF) under grants 03F0954D (ElbeXtreme, part of the DAM mission mareXtreme) and 03F0667A, and by the Helmholtz-Fonds under AGRIO (Effect of anthropogenic modifications and climate change on greenhouse gas emissions along the river-ocean continuum), 2025-01 to 2027-12.",
   "keywords": [
     "FABM",
     "Ecosystem Model",
@@ -22,14 +22,6 @@
   "communities": [
     {
       "identifier": "hereon"
-    }
-  ],
-  "grants": [
-    {
-      "id": "10.13039/501100002347::03F0954D"
-    },
-    {
-      "id": "10.13039/501100002347::03F0667A"
     }
   ],
   "creators": [

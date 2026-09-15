@@ -68,6 +68,8 @@ help:
 	@echo "  zenodo-new-version   Create a new draft version under the concept (separate DOI/version)"
 	@echo "  zenodo-archive       Build a source zip from a git tag (pass TAG=vX.Y.Z)"
 	@echo "  zenodo-add-file      Attach a file to a draft version (pass ZENODO_RECORD_ID= and FILE=)"
+	@echo "  zenodo-list-files    List files currently on a draft/record"
+	@echo "  zenodo-remove-file   Remove a file from a draft (pass REMOTE_FILE=, from zenodo-list-files)"
 	@echo ""
 	@echo "Add SANDBOX=1 to any target to run against sandbox.zenodo.org instead."
 
@@ -134,4 +136,20 @@ zenodo-add-file: zenodo-check-token
 		echo "error: pass FILE=<path to the archive to attach>"; \
 		exit 1; \
 	fi
-	zenodraft file add $(ZENODO_ZDFLAG) $(ZENODO_RECORD_ID) $(FILE)
+	@# zenodraft uses its <local_filename> argument verbatim as the remote
+	@# object key too, so an absolute/relative path with directories would
+	@# be sent as the key. Run from the file's own directory and pass only
+	@# the basename to get a sane remote filename.
+	cd $(dir $(FILE)) && zenodraft file add $(ZENODO_ZDFLAG) $(ZENODO_RECORD_ID) $(notdir $(FILE))
+
+.PHONY: zenodo-list-files
+zenodo-list-files: zenodo-check-token
+	zenodraft deposition show files $(ZENODO_ZDFLAG) $(ZENODO_RECORD_ID)
+
+.PHONY: zenodo-remove-file
+zenodo-remove-file: zenodo-check-token
+	@if [ -z "$(REMOTE_FILE)" ]; then \
+		echo "error: pass REMOTE_FILE=<remote filename, from zenodo-list-files>"; \
+		exit 1; \
+	fi
+	zenodraft file delete $(ZENODO_ZDFLAG) $(ZENODO_RECORD_ID) $(REMOTE_FILE)

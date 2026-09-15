@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2022-2026 Helmholtz-Zentrum hereon GmbH
+# SPDX-FileCopyrightText: 2026 Helmholtz-Zentrum hereon GmbH
 # SPDX-License-Identifier: CC0-1.0
 # SPDX-FileContributor Carsten Lemmen <carsten.lemmen@hereon.de>
 #
@@ -40,7 +40,7 @@
 # and only need to change if the record is ever recreated from scratch.
 
 ZENODO_METADATA    ?= .zenodo.json
-ZENODO_RECORD_ID   ?= 21982233
+ZENODO_RECORD_ID   ?= 22769783
 ZENODO_CONCEPT_ID  ?= 21982232
 ZENODO_ARCHIVE_DIR ?= /tmp/fabm-hereon-archive
 

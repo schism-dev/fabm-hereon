@@ -14,7 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `omexdia_c`: OMExDia extended with methane and sulfate cycling
 - `omexdia_c_bottom`: trait-based, bottom-only variant of the methane/sulfate OMExDia model
 - Zenodo metadata (`.zenodo.json`) with full creator/contributor list, ORCID identifiers, and funding acknowledgements
+- Related works and references in `.zenodo.json`: GitHub repository, and citations to the MOSSCO papers (Lemmen et al. 2018; Hofmeister et al. 2014) and Preußler's BSc thesis
 - Pre-commit hooks enforcing REUSE license compliance and validating `.zenodo.json` against the Zenodo metadata schema
+- `Makefile` wrapping the Zenodo metadata update workflow (validate, unlock, push, publish, verify), with sandbox support
 
 ### Changed
 - Updated Readme with nope

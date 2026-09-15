@@ -126,7 +126,14 @@ zenodo-archive:
 		exit 1; \
 	fi
 	mkdir -p $(ZENODO_ARCHIVE_DIR)
-	git archive --format=zip --prefix=fabm-hereon-$(patsubst v%,%,$(TAG))/ $(TAG) \
+	@# git archive scopes to the CURRENT WORKING DIRECTORY within the tree
+	@# when no pathspec is given - this only happens to work because this
+	@# Makefile lives at the repo root; run it via the repo root explicitly
+	@# so it stays correct if this file is ever moved (see the tame repo's
+	@# copy of this Makefile, which lives under doc/zenodo/, for why this
+	@# matters).
+	git -C $$(git rev-parse --show-toplevel) archive --format=zip \
+		--prefix=fabm-hereon-$(patsubst v%,%,$(TAG))/ $(TAG) \
 		-o $(ZENODO_ARCHIVE_DIR)/fabm-hereon-$(TAG).zip
 	@echo "Built $(ZENODO_ARCHIVE_DIR)/fabm-hereon-$(TAG).zip from tag $(TAG)"
 

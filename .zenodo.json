@@ -2,7 +2,10 @@
   "upload_type": "software",
   "license": "Apache-2.0",
   "title": "The Hereon FABM models OMExDia, NOPE, and light",
+  "description": "<p>This is a collection of <a href=\"https://fabm.net/\" rel=\"nofollow\">FABM</a> models developed at Helmholtz-Zentrum hereon GmbH by the ecosystem modeling group. It currently includes</p>\n<ol>\n<li>A <code>light</code> model, based on the GOTM <code>light</code> implementation but with more exact layer averaging</li>\n<li>The <strong>OMExDia</strong> model in several variations. OMExDia is a sediment biogeochemical model</li>\n</ol>\n<ul>\n<li>OMExDia with phosphorus (<code>omexdia_p</code>)</li>\n<li>OMExDia with methane (<code>omexdia_c</code>)</li>\n</ul>\n<ol>\n<li>The <strong>NOPE</strong> model for Nitrous Oxide Production and Emission</li>\n</ol>",
   "access_right": "open",
+  "language": "eng",
+  "thesis_university": "Leuphana University Lüneburg",
   "notes": "Copyright 2022-2026 Helmholtz-Zentrum hereon GmbH",
   "keywords": [
     "FABM",
@@ -16,6 +19,19 @@
     "GETM",
     "SCHISM"
   ],
+  "communities": [
+    {
+      "identifier": "hereon"
+    }
+  ],
+  "grants": [
+    {
+      "id": "10.13039/501100002347::03F0954D"
+    },
+    {
+      "id": "10.13039/501100002347::03F0667A"
+    }
+  ],
   "creators": [
     {
       "name": "Lemmen, Carsten",
@@ -23,19 +39,28 @@
       "orcid": "0000-0003-3483-6036"
     },
     {
-      "name": "Hofmeister, Richard"
+      "name": "Hofmeister, Richard",
+      "affiliation": "Helmholtz-Zentrum Hereon"
     },
     {
-      "name": "Wirtz, Kai W."
+      "name": "Wirtz, Kai W.",
+      "affiliation": "Helmholtz-Zentrum Hereon",
+      "orcid": "0000-0002-6972-3878"
     },
     {
-      "name": "García-Oliva, Ovídio"
+      "name": "García-Oliva, Ovídio",
+      "affiliation": "Helmholtz-Zentrum Hereon",
+      "orcid": "0000-0001-6060-2001"
     },
     {
-      "name": "Saadaoui, Youssef"
+      "name": "Saadaoui, Youssef",
+      "affiliation": "Helmholtz-Zentrum Hereon",
+      "orcid": "0009-0002-7199-8755"
     },
     {
-      "name": "Preußler, Nina"
+      "name": "Preußler, Nina",
+      "affiliation": "Helmholtz-Zentrum Hereon; Leuphana University Lüneburg",
+      "orcid": "0009-0003-9423-750X"
     }
   ],
   "contributors": [

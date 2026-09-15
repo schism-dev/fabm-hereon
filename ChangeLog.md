@@ -10,13 +10,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-09-15
+
 ### Added
 - `omexdia_c`: OMExDia extended with methane and sulfate cycling
 - `omexdia_c_bottom`: trait-based, bottom-only variant of the methane/sulfate OMExDia model
 - Zenodo metadata (`.zenodo.json`) with full creator/contributor list, ORCID identifiers, and funding acknowledgements
 - Related works and references in `.zenodo.json`: GitHub repository, and citations to the MOSSCO papers (Lemmen et al. 2018; Hofmeister et al. 2014) and Preußler's BSc thesis
 - Pre-commit hooks enforcing REUSE license compliance and validating `.zenodo.json` against the Zenodo metadata schema
-- `Makefile` wrapping the Zenodo metadata update workflow (validate, unlock, push, publish, verify), with sandbox support
+- `Makefile` wrapping the Zenodo metadata update workflow (validate, unlock, push, publish, verify, and building/attaching a release archive to a new version), with sandbox support
 
 ### Changed
 - Updated Readme with nope
@@ -27,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Added missing SPDX license headers to `omexdia_c.F90` and `omexdia_c_bottom.F90`
+- Corrected the archived v0.1.0 Zenodo record's version and publication date, and published v0.2.0 and v0.3.0 as their own properly versioned Zenodo records
 
 ## [0.3.0] - 2026-08-17
 
@@ -90,7 +93,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Deleted old omexdia_n2o files
 - Moved old fabm.nml testcases
 
-[Unreleased]: https://github.com/username/project/compare/v0.3.0...HEAD
-[0.3.0]: https://github.com/username/project/compare/v0.2.0...v0.3.0
-[0.2.0]: https://github.com/username/project/compare/v0.1.0...v0.2.0
-[0.1.0]: https://github.com/username/project/commits/v0.1.0
+[Unreleased]: https://github.com/schism-dev/fabm-hereon/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/schism-dev/fabm-hereon/compare/v0.3.0...v0.4.0
+[0.3.0]: https://github.com/schism-dev/fabm-hereon/compare/v0.2.0...v0.3.0
+[0.2.0]: https://github.com/schism-dev/fabm-hereon/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/schism-dev/fabm-hereon/commits/v0.1.0

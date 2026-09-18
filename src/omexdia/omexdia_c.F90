@@ -21,6 +21,30 @@
 ! Further, the reaction ladder was extended to include methanogenesis, reoxidation
 ! of methane and simple ebullition.
 !
+! Soetaert et al. (1996a) themselves lump manganese-oxide and iron-oxide
+! reduction together with sulfate reduction into a single carbon-limited
+! "anoxic mineralization" pathway, precisely to avoid tracking solid MnO2/
+! FeOOH inventories. This version instead resolves MnO2 and FeOOH reduction
+! as their own competing pathways, positioned per the classical Froelich et
+! al. (1979) redox ladder (O2 > NO3 > MnO2 > FeOOH > SO4 > CH4): each claims
+! a Monod-type share of the anoxic pore space in proportion to its own solid
+! oxide availability, passing the remainder down the ladder to the next
+! electron acceptor -- so Mn/Fe reduction now genuinely competes for the
+! same carbon supply as sulfate reduction and methanogenesis, rather than
+! being folded into SulfateMin as in the lumped formulation. Both pathways
+! produce reduced metal (Mn2+, Fe2+) that is lumped into the existing ODU
+! currency, following Soetaert et al.'s own convention (and the "[FeS]
+! approximated by ODU" comment already used below for phosphate sorption).
+! MnO2/FeOOH are consumed stoichiometrically per the classical Froelich
+! (1979) reactions (2 mol Mn or 4 mol Fe per mol C, reflecting the 2-electron
+! vs 1-electron reduction of Mn(IV) vs Fe(III)) and resupplied at a fixed
+! rate representing net delivery from the water column/bioturbated layer;
+! full internal reoxidation of ODU back to solid oxide (as in Van Cappellen
+! & Wang, 1996, or Boudreau, 1996 -- both cited in Soetaert et al. 1996a as
+! the more detailed alternative) is not attempted here, since that would
+! require tracking which fraction of the single lumped ODU pool is
+! Mn/Fe/sulfide in origin.
+!
 ! !USES:
    use fabm_types
 
@@ -45,8 +69,10 @@
       type (type_state_variable_id)        :: id_fdet,id_sdet,id_pdet
       type (type_state_variable_id)        :: id_no3,id_nh3,id_oxy,id_po4,id_odu
       type (type_state_variable_id)        :: id_ch4, id_ch4_gas
+      type (type_state_variable_id)        :: id_mno2, id_feooh
       type (type_dependency_id)            :: id_temp, id_salinity
       type (type_diagnostic_variable_id)   :: id_denit,id_adsp
+      type (type_diagnostic_variable_id)   :: id_mnmin,id_femin
 
 !     Model parameters
       real(rk) :: rFast, rSlow, NCrFdet, NCrSdet
@@ -58,6 +84,9 @@
       real(rk) :: rmaxO2
       real(rk) :: ksCH4   ! methanogenesis
       real(rk) :: strip_rate ! CH4 saturation-capping relaxation rate
+      real(rk) :: KMn, KFe          ! half-saturation solid-oxide availability, Mn/Fe reduction
+      real(rk) :: chiMn, chiFe      ! stoichiometric oxide:carbon ratio (Froelich 1979)
+      real(rk) :: SMn, SFe          ! resupply rate of MnO2/FeOOH
 
       contains
 
@@ -125,6 +154,18 @@
         'fast and solver-independent by design -- NOT literally 1/dt (no _DT_ macro exists '// &
         'in this FABM version)', default=100.0_rk)
 
+   ! Manganese/iron reduction parameters. KMn/KFe are illustrative
+   ! first-order estimates (not calibrated against any specific site) since
+   ! neither Froelich (1979) nor Soetaert et al. (1996a) resolve solid-oxide
+   ! Monod kinetics explicitly; chiMn/chiFe follow directly from the
+   ! classical Froelich (1979) reaction stoichiometry.
+   call self%get_parameter(self%KMn,'KMn','mmolMn m-3','half-saturation MnO2 availability, Mn reduction',default=5.0_rk)
+   call self%get_parameter(self%KFe,'KFe','mmolFe m-3','half-saturation FeOOH availability, Fe reduction',default=10.0_rk)
+   call self%get_parameter(self%chiMn,'chiMn','molMn molC-1','MnO2 consumed per carbon oxidized (Froelich 1979)',default=2.0_rk)
+   call self%get_parameter(self%chiFe,'chiFe','molFe molC-1','FeOOH consumed per carbon oxidized (Froelich 1979)',default=4.0_rk)
+   call self%get_parameter(self%SMn,'SMn','mmolMn m-3 d-1','resupply rate of reactive MnO2',default=0.5_rk)
+   call self%get_parameter(self%SFe,'SFe','mmolFe m-3 d-1','resupply rate of reactive FeOOH',default=1.0_rk)
+
    ! Register state variables
    call self%register_state_variable(self%id_fdet, 'fdet', 'mmolC m**-3', 'fast detritus C',              4.e3_rk, minimum=0.0_rk)
    call self%register_state_variable(self%id_sdet, 'sdet', 'mmolC m**-3', 'slow detritus C',              4.e3_rk, minimum=0.0_rk)
@@ -138,6 +179,9 @@
    call self%register_state_variable(self%id_ch4,     'ch4',     'mmolC m**-3', 'dissolved methane',       0.0_rk, minimum=0.0_rk)
    call self%register_state_variable(self%id_ch4_gas, 'ch4_gas', 'mmolC m**-3', 'gaseous bubble methane',  0.0_rk, minimum=0.0_rk)
 
+   call self%register_state_variable(self%id_mno2,  'mno2',  'mmolMn m**-3', 'reactive manganese oxide', 50._rk,  minimum=0.0_rk)
+   call self%register_state_variable(self%id_feooh, 'feooh', 'mmolFe m**-3', 'reactive iron oxide (ferrihydrite)', 200._rk, minimum=0.0_rk)
+
    call self%set_variable_property(self%id_fdet,'particulate',.true.)
    call self%set_variable_property(self%id_sdet,'particulate',.true.)
    call self%set_variable_property(self%id_pdet,'particulate',.true.)
@@ -148,11 +192,15 @@
    call self%set_variable_property(self%id_odu,'particulate',.false.)
    call self%set_variable_property(self%id_ch4,'particulate',.false.)
    call self%set_variable_property(self%id_ch4_gas,'particulate',.false.)
+   call self%set_variable_property(self%id_mno2,'particulate',.true.)
+   call self%set_variable_property(self%id_feooh,'particulate',.true.)
 
    ! Register diagnostic variables
 
    call self%register_diagnostic_variable(self%id_adsp,'adsP','mmolP m**-3','phosphate adsorption', output=output_instantaneous)
    call self%register_diagnostic_variable(self%id_denit,'denit','mmol m**-3 d-1','denitrification rate', output=output_instantaneous)
+   call self%register_diagnostic_variable(self%id_mnmin,'mnmin','mmol m**-3 d-1','manganese-oxide reduction rate', output=output_instantaneous)
+   call self%register_diagnostic_variable(self%id_femin,'femin','mmol m**-3 d-1','iron-oxide reduction rate', output=output_instantaneous)
 
    ! Register dependencies
    
@@ -193,6 +241,7 @@
    real(rk) :: CprodF,CprodS,Cprod,Nprod,Pprod
    real(rk) :: Denitrific,OxicMin,Nitri,OduDepo,OduOx,pDepo
    real(rk) :: anoxic_space, SulfateMin, SulfateMinlim, Methanolim
+   real(rk) :: mno2, feooh, f_mn, f_fe, Mnminlim, Feminlim, MnMin, FeMin
 
    ! Methane and sulfur state variable values
    real(rk) :: salinity    ! [PSU] Salinity, range: 0.0 to 35.0
@@ -236,6 +285,8 @@
    _GET_(self%id_ch4,ch4)
    _GET_(self%id_ch4_gas,ch4_gas)
    _GET_(self%id_salinity,salinity)
+   _GET_(self%id_mno2,mno2)
+   _GET_(self%id_feooh,feooh)
 
    ! Sulfate linearly depends on salinity, so this is used as a proxy
    so4 = sulfate_from_salinity(salinity)
@@ -254,19 +305,36 @@
    ! The total anoxic space remaining after aerobic respiration and denitrification
    anoxic_space = (1.0_rk - oxy / (oxy + self%kinO2anox)) * (1.0_rk - no3 / (no3 + self%kinNO3anox))
 
-   ! Break down the anoxic potential based on sulfate
+   ! Sequentially partition the anoxic pore space down the Froelich (1979)
+   ! redox ladder: Mn reduction claims a Monod-type share of anoxic_space
+   ! first (in proportion to its own solid MnO2 availability), Fe reduction
+   ! claims a share of what Mn left behind, and sulfate reduction/
+   ! methanogenesis split what remains after both -- exactly generalizing
+   ! the two-way f_so4/f_meth split that existed here before Mn/Fe were
+   ! resolved separately.
+   f_mn   = mno2 / (mno2 + self%KMn)                   ! Monod gate for Mn reduction
+   f_fe   = feooh / (feooh + self%KFe)                 ! Monod gate for Fe reduction
    f_so4  = so4 / (self%kinSO4 + so4)                  ! Monod gate for sulfate reduction
    f_meth = self%kinSO4 / (self%kinSO4 + so4)          ! Sulfate inhibition gate for methanogens
 
-   SulfateMinlim = anoxic_space * f_so4
-   Methanolim    = anoxic_space * f_meth * f_temp_meth ! Scaled by the methane Q10 Arrhenius factor
+   Mnminlim      = anoxic_space * f_mn
+   Feminlim      = anoxic_space * (1.0_rk - f_mn) * f_fe
+   SulfateMinlim = anoxic_space * (1.0_rk - f_mn) * (1.0_rk - f_fe) * f_so4
+   Methanolim    = anoxic_space * (1.0_rk - f_mn) * (1.0_rk - f_fe) * f_meth * f_temp_meth ! Scaled by the methane Q10 Arrhenius factor
 
    ! Rescale the expanded terminal electron accepting processes (TEAPs)
    ! This guarantees total mineralization exactly equals Cprod regardless of local inhibition strengths
-   Rescale = 1.0_rk / (Oxicminlim + Denitrilim + SulfateMinlim + Methanolim)
+   Rescale = 1.0_rk / (Oxicminlim + Denitrilim + Mnminlim + Feminlim + SulfateMinlim + Methanolim)
 
-   CprodF = self%rFast * fdet
-   CprodS = self%rSlow * sdet
+   ! f_T is folded in here (rather than at the point of use below) so that
+   ! Cprod -- and hence OxicMin+Denitrific+SulfateMin+r_methano via the
+   ! Rescale partition -- equals exactly the carbon actually removed from
+   ! fdet/sdet below; previously Cprod was computed without f_T while the
+   ! fdet/sdet sink applied f_T separately, so the four mineralization
+   ! products summed to Cprod/f_T instead of to the true carbon loss
+   ! whenever f_T /= 1 (i.e. whenever temperature /= 15 degC).
+   CprodF = f_T * self%rFast * fdet
+   CprodS = f_T * self%rSlow * sdet
    Cprod  = CprodF + CprodS
    Nprod  = CprodF * self%NCrFdet + CprodS * self%NCrSdet
 
@@ -277,9 +345,11 @@
    rP    = self%rFast * (1.0_rk - Oxicminlim)
    Pprod  = rP * pdet
 
-! Oxic mineralisation, denitrification, sulfate and methanogenesis
+! Oxic mineralisation, denitrification, Mn/Fe reduction, sulfate and methanogenesis
    OxicMin    = Cprod * Oxicminlim    * Rescale   ! Aerobic respiration
    Denitrific = Cprod * Denitrilim    * Rescale   ! Nitrate reduction
+   MnMin      = Cprod * Mnminlim      * Rescale   ! Manganese-oxide reduction (produces Mn2+, lumped into ODU)
+   FeMin      = Cprod * Feminlim      * Rescale   ! Iron-oxide reduction (produces Fe2+, lumped into ODU)
    SulfateMin = Cprod * SulfateMinlim * Rescale   ! Sulfate reduction (produces native ODU)
    r_methano  = Cprod * Methanolim    * Rescale   ! Methanogenesis (produces CH4)
 
@@ -320,25 +390,31 @@
 
 #define _CONV_UNIT_ /secs_pr_day
 ! reaction rates
-   _ADD_SOURCE_(self%id_fdet, -f_T * CprodF _CONV_UNIT_)
-   _ADD_SOURCE_(self%id_sdet, -f_T * CprodS _CONV_UNIT_)
+   _ADD_SOURCE_(self%id_fdet, -CprodF _CONV_UNIT_)
+   _ADD_SOURCE_(self%id_sdet, -CprodS _CONV_UNIT_)
    _ADD_SOURCE_(self%id_oxy , (-OxicMin - 2.0_rk* Nitri - OduOx) _CONV_UNIT_)
    _ADD_SOURCE_(self%id_no3 , (-0.8_rk*Denitrific + Nitri) _CONV_UNIT_)     ! from 4/5 denitrification stoichiometry
-   _ADD_SOURCE_(self%id_nh3 , (f_T * Nprod - Nitri) / (1.0_rk + self%NH3Ads) _CONV_UNIT_)
+   _ADD_SOURCE_(self%id_nh3 , (Nprod - Nitri) / (1.0_rk + self%NH3Ads) _CONV_UNIT_)
    ! NOTE: was `AnoxicMin`, a leftover from the pre-sulfate/methane 3-way
    ! partition (still in omexdia_p.F90) -- this file replaced it with the
    ! 4-way OxicMin/Denitrific/SulfateMin/r_methano split (see OduDepo
    ! above, which was correctly updated) but missed this line; AnoxicMin
    ! was never declared here, so it would not have compiled.
-   _ADD_SOURCE_(self%id_odu , (SulfateMin - OduOx - OduDepo) _CONV_UNIT_)
+   ! MnMin and FeMin now also feed ODU (Mn2+, Fe2+ lumped into the same
+   ! reduced-substance currency as sulfide, see header note).
+   _ADD_SOURCE_(self%id_odu , (MnMin + FeMin + SulfateMin - OduOx - OduDepo) _CONV_UNIT_)
    _ADD_SOURCE_(self%id_po4 , (f_T * Pprod - radsP) _CONV_UNIT_)
    _ADD_SOURCE_(self%id_pdet, (radsP - f_T * Pprod) _CONV_UNIT_)
    _ADD_SOURCE_(self%id_ch4,     (g_ch4 - r_oxic_ox - r_aom - local_stripping) _CONV_UNIT_)
    _ADD_SOURCE_(self%id_ch4_gas, (local_stripping)_CONV_UNIT_)
+   _ADD_SOURCE_(self%id_mno2,  (self%SMn - self%chiMn * MnMin) _CONV_UNIT_)
+   _ADD_SOURCE_(self%id_feooh, (self%SFe - self%chiFe * FeMin) _CONV_UNIT_)
 
    ! Export diagnostic variables
    _SET_DIAGNOSTIC_(self%id_denit,Denitrific)
    _SET_DIAGNOSTIC_(self%id_adsp ,radsP)
+   _SET_DIAGNOSTIC_(self%id_mnmin,MnMin)
+   _SET_DIAGNOSTIC_(self%id_femin,FeMin)
 
    ! Leave spatial loops (if any)
    _LOOP_END_

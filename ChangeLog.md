@@ -10,6 +10,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-29
+
+### Added
+- `nope`: three N2O production pathways with O2-dependent yields: hydroxylamine
+  oxidation and nitrifier denitrification during nitrification (Wrage et al. 2001),
+  and a "leaky-pipe" denitrification yield that peaks at suboxic O2
+  (Firestone and Davidson 1989), with diagnostics for each pathway and yield
+- `nope`: N2O reduction to N2 with sigmoidal O2 inhibition, NO3 competition,
+  optional labile-carbon limitation and Q10 temperature scaling
+- `nope`: optional O2- and temperature-dependent benthic N2O efflux (off by default)
+- `nope`: choice of gas transfer velocity (Wanninkhof 2014, Nightingale et al. 2000,
+  or Wanninkhof 1992 with a low-wind branch), Weiss and Price (1980) solubility with
+  optional water-vapour correction, optional time-varying surface air pressure,
+  and freshwater or seawater Schmidt number
+- `nope`: unit conversion parameters for host nitrification/denitrification rates
+  and optional Q10 scaling of production (off by default, to avoid double-counting
+  host temperature dependence)
+- `omexdia_c`: experimental MnO2 and FeOOH reduction as separate pathways on the
+  redox ladder (Froelich et al. 1979), with resupply of reactive oxides and
+  `mnmin`/`femin` diagnostics
+
+### Changed
+- `nope`: rewritten as version 1.0 with extended documentation of sources, sinks,
+  boundary fluxes, expected host rate definitions and mass budget
+- `nope`: `wind_data_type` renamed to `wind_forcing_mode`
+- `nope`: production and emission diagnostics renamed and reorganised
+  (e.g. single `n2o_emit_w` flux and `k_gas` transfer velocity)
+
+### Removed
+- `nope`: the Borges et al. (2004) parallel tracer `n2o_b` and its flux and
+  transfer-velocity diagnostics
+- `nope`: constant/dynamic/Tang et al. (2024) emission-factor parameters
+  (`n2o_emission_factor_nitri`, `n2o_emission_factor_nitri_type`,
+  `n2o_emission_factor_denit`) and the `nitrification_scale_factor` and
+  `denitrification_scale_factor` parameters, superseded by the new yield
+  and conversion parameters. Existing `fabm.yaml` configurations for `nope`
+  need to be updated.
+
 ## [0.4.0] - 2026-09-15
 
 ### Added
@@ -93,7 +131,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Deleted old omexdia_n2o files
 - Moved old fabm.nml testcases
 
-[Unreleased]: https://github.com/schism-dev/fabm-hereon/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/schism-dev/fabm-hereon/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/schism-dev/fabm-hereon/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/schism-dev/fabm-hereon/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/schism-dev/fabm-hereon/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/schism-dev/fabm-hereon/compare/v0.1.0...v0.2.0

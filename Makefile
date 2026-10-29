@@ -36,11 +36,11 @@
 #   make zenodo-verify ZENODO_RECORD_ID=<id>
 #
 # The record/concept ids below are specific to this repository's Zenodo
-# deposit (DOI 10.5281/zenodo.21982233, concept DOI 10.5281/zenodo.21982232)
+# deposit (latest version v0.5.0: DOI 10.5281/zenodo.23768636, concept DOI 10.5281/zenodo.21982232)
 # and only need to change if the record is ever recreated from scratch.
 
 ZENODO_METADATA    ?= .zenodo.json
-ZENODO_RECORD_ID   ?= 22769783
+ZENODO_RECORD_ID   ?= 23768636
 ZENODO_CONCEPT_ID  ?= 21982232
 ZENODO_ARCHIVE_DIR ?= /tmp/fabm-hereon-archive
 

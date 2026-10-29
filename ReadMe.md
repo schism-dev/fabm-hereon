@@ -6,6 +6,8 @@ SPDX-License-Identifier: CC0-1.0
 
 # FABM-hereon
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23768636.svg)](https://doi.org/10.5281/zenodo.23768636) (v0.5.0; [all versions](https://doi.org/10.5281/zenodo.21982232))
+
 This is a collection of [FABM](https://fabm.net) models developed at Helmholtz-Zentrum hereon GmbH by the ecosystem modeling group.  It currently includes
 1. A `light` model, based on the GOTM `light` implementation but with more exact layer averaging
 2. The **OMExDia** model in several variations. OMExDia is a sediment biogeochemical model
